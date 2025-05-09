@@ -130,7 +130,7 @@ for (r in 1:REPS) {
                              type = "model",
                              wone = w1, 
                              wzero = w0)
-  sim_res[r, c("ipw_nonparam_delta", "ipw_nonparam_delta.s", "ipw_nonparam_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
+  sim_res[r, c("ipw_param_delta", "ipw_param_delta.s", "ipw_param_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
   
   ## Estimate R with parametric approach (SMLE)
   Rparam_miss_smle = R.s.miss(sone = s1, 
