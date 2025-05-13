@@ -1,8 +1,12 @@
+# Load libraries
+library(ggplot2)
+library(latex2exp)
+
 # Read in simulation results
 p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett1_mcar/sett1_mcar_seed", 0:9, ".csv")
-plot_dat = do.call(dplyr::bind_rows, 
-                   lapply(X = paste0(p, list.files(p)), 
-                          FUN = read.csv))
+sim_res = do.call(dplyr::bind_rows, 
+                  lapply(X = paste0(p, list.files(p)), 
+                         FUN = read.csv))
 
 # Make them long 
 res_long = sim_res |> 
@@ -26,17 +30,18 @@ res_long = sim_res |>
                                              replacement = "", 
                                              x = method_quantity)))) |> 
   dplyr::select(-method_quantity) |> 
-  dplyr::mutate(method = factor(x = method, 
+  dplyr::mutate(parametric = factor(x = !grepl(pattern = "nonparam", x = method), 
+                                    levels = c(FALSE, TRUE), 
+                                    labels = c("Nonparametric", "Parametric")), 
+                method = factor(x = method, 
                                 levels = c("gs_nonparam", "gs_param", 
                                            "cc_nonparam", "cc_param", 
                                            "ipw_nonparam", "ipw_param", 
-                                           "smle_param"), 
-                                labels = c("GS (NP)", "GS (P)", 
-                                           "CC (NP)", "CC (P)", 
-                                           "IPW (NP)", "IPW (P)",
-                                           "SMLE (P)")), 
-                parametric = !grepl(pattern = "(NP)", 
-                                    x = method))
+                                           "smle_param", "mle_param"), 
+                                labels = c("Gold Standard", "Gold Standard", 
+                                           "Complete Case", "Complete Case", 
+                                           "IPW", "IPW",
+                                           "SMLE", "MLE")))
 
 # Make a boxplot 
 res_long |> 
@@ -45,8 +50,10 @@ res_long |>
   geom_hline(aes(yintercept = truth), linetype = 2, color = "white") + 
   facet_wrap(~quantity, scales = "free", ncol = 3, labeller = label_parsed) + 
   scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 5)) + 
+  scale_fill_manual(name = "PTE Estimator:", values = c("#ffbd59",  "#787ff6")) + 
   theme_minimal() + 
   theme(legend.position = "top", 
         strip.background = element_rect(fill = "black"), 
-        strip.text = element_text(color = "white")) + 
-  ggtitle(label = "Boxplot of estimates under missingness completely at random (MCAR)")
+        strip.text = element_text(color = "white"))
+ggsave(filename = "~/Documents/missing_surrogates/figures/sett1_mcar_boxplot.pdf", 
+       device = "pdf", width = 7, height = 5)
