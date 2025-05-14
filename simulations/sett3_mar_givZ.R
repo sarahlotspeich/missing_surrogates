@@ -105,11 +105,11 @@ for (r in 1:REPS) {
   
   ## Calculate weights for IPW approaches
   m = c(m1, m0)
-  y = c(y1, y0)
-  ipw_fit = glm(formula = m ~ y, 
+  z = rep(x = c(1, 0), times = c(n1, n0))
+  ipw_fit = glm(formula = m ~ z, 
                 family = "binomial")
-  w1 = 1 / (1 + exp(-(ipw_fit$coefficients[1] + ipw_fit$coefficients[2] * y1)))
-  w0 = 1 / (1 + exp(-(ipw_fit$coefficients[1] + ipw_fit$coefficients[2] * y0)))
+  w1 = rep(1 / (1 + exp(-(ipw_fit$coefficients[1] + ipw_fit$coefficients[2]))), n1)
+  w0 = rep(1 / (1 + exp(-(ipw_fit$coefficients[1]))), n0)
   
   ## Estimate R with nonparametric approach (IPW)
   Rnonparam_miss_ipw = R.s.miss(sone = s1, 
@@ -129,7 +129,7 @@ for (r in 1:REPS) {
                              type = "model",
                              wone = w1, 
                              wzero = w0)
-  sim_res[r, c("ipw_nonparam_delta", "ipw_nonparam_delta.s", "ipw_nonparam_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
+  sim_res[r, c("ipw_param_delta", "ipw_param_delta.s", "ipw_param_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
   
   ## Estimate R with parametric approach (SMLE)
   Rparam_miss_smle = R.s.miss(sone = s1, 
