@@ -79,7 +79,7 @@ expit = function(x){
 
 R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
                     wone = NULL, wzero = NULL, max_it = 1E4, tol = 1E-3, 
-                    noSE = TRUE, ipw_formula = m ~ y * z) {
+                    conf.int = FALSE, ipw_formula = m ~ y * z) {
   # Define TRUE/FALSE use IPW based on non-null weights supplied
   ipw = !is.null(wone) & !is.null(wzero)
 
@@ -96,7 +96,7 @@ R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
   }
   
   # Estimate standard errors (perturbation resampling)
-  if (!noSE) {
+  if (conf.int) {
     ## Loop over perturbation resampling D = 500 times 
     delta_d = delta.s_d = R.s_d = vector(length = 500)
     for (d in 1:500) {
