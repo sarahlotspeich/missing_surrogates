@@ -46,8 +46,7 @@ sim_res = data.frame(
   cc_param_delta = NA, cc_param_delta.s = NA, cc_param_R.s = NA, 
   ipw_nonparam_delta = NA, ipw_nonparam_delta.s = NA, ipw_nonparam_R.s = NA, 
   ipw_param_delta = NA, ipw_param_delta.s = NA, ipw_param_R.s = NA,
-  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA,
-  mle_param_delta = NA, mle_param_delta.s = NA, mle_param_R.s = NA) 
+  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA) 
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -78,9 +77,9 @@ for (r in 1:REPS) {
   sim_res[r, c("gs_param_delta", "gs_param_delta.s", "gs_param_R.s")] = with(Rparam, c(delta, delta.s, R.s))
   
   # Simulate non-missingness indicators ###################
-  ## Under MCAR, everybody has 30% missingness probability
-  m1 = rbinom(n1, 1, 0.70) 
-  m0 = rbinom(n0, 1, 0.70)
+  ## Under MCAR, everybody has 35% missingness probability
+  m1 = rbinom(n1, 1, 0.65) 
+  m0 = rbinom(n0, 1, 0.65)
   s0[m0==0] = NA ### make them missing
   s1[m1==0] = NA ### make them missing
   
@@ -140,15 +139,6 @@ for (r in 1:REPS) {
                               type = "model", 
                               smle = TRUE) 
   sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s")] = with(Rparam_miss_smle, c(delta, delta.s, R.s))
-  
-  ## Estimate R with parametric approach (SMLE)
-  Rparam_miss_mle = R.s.miss(sone = s1, 
-                             szero = s0,
-                             yone = y1,
-                             yzero = y0, 
-                             type = "model", 
-                             smle = FALSE) 
-  sim_res[r, c("mle_param_delta", "mle_param_delta.s", "mle_param_R.s")] = with(Rparam_miss_mle, c(delta, delta.s, R.s))
   
   ## Save 
   sim_res |> 
