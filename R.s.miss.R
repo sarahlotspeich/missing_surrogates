@@ -89,7 +89,7 @@ R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
     if (ipw) {
       est_res = R.s.miss_model_ipw(sone, szero, yone, yzero, wone, wzero)      
     } else { ## using MLE or SMLE to handle missing data
-      est_res = R.s.miss_model_smle(sone, szero, yone, yzero, nonparam = smle, max_it, tol)  
+      est_res = R.s.miss_model_smle(sone, szero, yone, yzero, nonparam = smle, conv_res = NULL, max_it, tol)  
     }
   } else if (type == "robust") {
     est_res = R.s.miss_robust_ipw(sone, szero, yone, yzero, wone, wzero)
@@ -98,66 +98,21 @@ R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
   # Estimate standard errors (perturbation resampling)
   if (conf.int) {
     ## Loop over perturbation resampling D = 500 times 
-    delta_d = delta.s_d = R.s_d = vector(length = 500)
-    for (d in 1:500) {
-      ### Simulate perturbations from Expo(1)
-      Vd_one = rexp(n = length(yone), rate = 1) 
-      Vd_zero = rexp(n = length(yzero), rate = 1) 
-      
-      ### Multiply Y and S by them 
-      Yd_one = yone * Vd_one 
-      Sd_one = sone * Vd_one
-      Yd_zero = yzero * Vd_zero 
-      Sd_zero = szero * Vd_zero
-      
-      ### Re-calculate weights for IPW approaches
-      if (ipw) {
-        #### Define non-missingness indicators for the two treatment groups
-        mone = as.numeric(!is.na(Sd_one))
-        mzero = as.numeric(!is.na(Sd_zero))
-        
-        #### Define vectors of variables for model (all of them just in case)
-        m = c(mone, mzero)
-        z = rep(x = c(1, 0), times = c(length(Sd_one), length(Sd_zero)))
-        s = c(Sd_one, Sd_zero)
-        y = c(Yd_one, Yd_zero)
-        
-        #### Fit the IPW model 
-        ipw_fit = glm(formula = as.formula(ipw_formula), 
-                      family = "binomial")
-        
-        #### Get estimated weights for each patient 
-        w = predict(object = ipw_fit, 
-                    type = "response")
-        
-        #### Split weights into vectors for treatment/control
-        wd_one = w[1:length(Sd_one)]
-        wd_zero = w[-c(1:length(Sd_one))]
-      }
-      ### Re-estimate parameters using perturbed data
-      if (type == "model") { # Wang & Taylor's approach 
-        #### Using IPW to handle missing data
-        if (ipw) {
-          est_res = R.s.miss_model_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)      
-        } else { #### using SMLE to handle missing data
-          est_res = R.s.miss_model_smle(Sd_one, Sd_zero, Yd_one, Yd_zero, nonparam = smle, max_it, tol)  
-        }
-      } else if (type == "robust") {
-        est_res = R.s.miss_robust_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)
-      }
-      
-      ### Save them to vectors 
-      delta_d[d] = est_res$delta
-      delta.s_d[d] = est_res$delta.s
-      R.s_d[d] = est_res$R.s
-    }
+    pert_quant = do.call(what = rbind, 
+                         args = parallel::mclapply(X = 1:500, 
+                                                   FUN = perturb_resample, 
+                                                   sone = sone, szero = szero, 
+                                                   yone = yone, yzero = yzero, 
+                                                   type = type, smle = smle, 
+                                                   ipw = ipw, max_it = max_it, 
+                                                   tol = tol, conv_res = est_res))
     
     ## Calculate two types of 95% confidence intervals
     ### Normal approximation 
     #### Variance estimates for each quantity
-    var_delta = var(delta_d)
-    var_delta.s = var(delta.s_d)
-    var_R.s = var(R.s_d)
+    var_delta = var(pert_quant$delta)
+    var_delta.s = var(pert_quant$delta.s)
+    var_R.s = var(pert_quant$R.s)
     
     #### Used to compute Wald-type confidence intervals
     norm_ci_delta = est_res$delta + c(-1.96, 1.96) * sqrt(var_delta)
@@ -165,9 +120,9 @@ R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
     norm_ci_R.s = est_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
     
     ### Quantile-based 
-    quant_ci_delta = as.vector(quantile(x = delta_d, probs = c(0.025, 0.975)))
-    quant_ci_delta.s = as.vector(quantile(x = delta.s_d, probs = c(0.025, 0.975)))
-    quant_ci_R.s = as.vector(quantile(x = R.s_d, probs = c(0.025, 0.975)))
+    quant_ci_delta = as.vector(quantile(x = pert_quant$delta, probs = c(0.025, 0.975)))
+    quant_ci_delta.s = as.vector(quantile(x = pert_quant$delta.s, probs = c(0.025, 0.975)))
+    quant_ci_R.s = as.vector(quantile(x = pert_quant$R.s, probs = c(0.025, 0.975)))
     
     ### Build final return list (based on R.s.estimate syntax)
     res_list = list(
@@ -192,6 +147,56 @@ R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
     ### Otherwise, just return point estimates (without SEs/CIs)
     return(est_res)
   }
+}
+
+perturb_resample = function(d, sone, szero, yone, yzero, type = "robust", smle = TRUE, ipw,
+                            max_it = 1E4, tol = 1E-3, conv_res = NULL, ipw_formula = m ~ y * z) {
+  ### Simulate perturbations from Expo(1)
+  Vd_one = rexp(n = length(yone), rate = 1) 
+  Vd_zero = rexp(n = length(yzero), rate = 1) 
+  
+  ### Multiply Y and S by them 
+  Yd_one = yone * Vd_one 
+  Sd_one = sone * Vd_one
+  Yd_zero = yzero * Vd_zero 
+  Sd_zero = szero * Vd_zero
+  
+  ### Re-calculate weights for IPW approaches
+  if (ipw) {
+    #### Define non-missingness indicators for the two treatment groups
+    mone = as.numeric(!is.na(Sd_one))
+    mzero = as.numeric(!is.na(Sd_zero))
+    
+    #### Define vectors of variables for model (all of them just in case)
+    m = c(mone, mzero)
+    z = rep(x = c(1, 0), times = c(length(Sd_one), length(Sd_zero)))
+    s = c(Sd_one, Sd_zero)
+    y = c(Yd_one, Yd_zero)
+    
+    #### Fit the IPW model 
+    ipw_fit = glm(formula = as.formula(ipw_formula), 
+                  family = "binomial")
+    
+    #### Get estimated weights for each patient 
+    w = predict(object = ipw_fit, 
+                type = "response")
+    
+    #### Split weights into vectors for treatment/control
+    wd_one = w[1:length(Sd_one)]
+    wd_zero = w[-c(1:length(Sd_one))]
+  }
+  ### Re-estimate parameters using perturbed data
+  if (type == "model") { # Wang & Taylor's approach 
+    #### Using IPW to handle missing data
+    if (ipw) {
+      res_d = R.s.miss_model_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)      
+    } else { #### using SMLE to handle missing data
+      res_d = R.s.miss_model_smle(Sd_one, Sd_zero, Yd_one, Yd_zero, nonparam = smle, conv_res = conv_res, max_it, tol)  
+    }
+  } else if (type == "robust") {
+    res_d = R.s.miss_robust_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)
+  }
+  return(cbind(it = d, with(res_d, data.frame(delta, delta.s, R.s))))
 }
 
 R.s.miss_robust_ipw = function(sone, szero, yone, yzero, wone, wzero) {
@@ -261,7 +266,7 @@ R.s.miss_model_ipw = function(sone, szero, yone, yzero, wone, wzero) {
        alphas = c(alpha0, alpha1))
 }
 
-R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, max_it = 1E4, tol = 1E-3) {
+R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, conv_res, max_it = 1E4, tol = 1E-3) {
   # Save useful constants 
   N0 = length(szero) ## number in control group
   N1 = length(sone) ## number in treatment group
@@ -315,6 +320,23 @@ R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, max_it = 1E4,
     prev_gamma = gamma0 = rep(0, 2)
     prev_eta = eta0 = 0.1
   }
+  
+  # If converged values supplied, use them as initials 
+  if (!is.null(conv_res)) {
+    ## Linear regression of Y ~ Z + S + X x Z
+    prev_beta = beta0 = conv_res$betas
+    prev_sigma = sigma0 = conv_res$sigma
+    # Conditional distribution of S given Z
+    if (nonparam) {
+      ## Empirical probabilities of S | Z = 0
+      prev_p_z0 = p0_z0 = matrix(data = conv_res$p0, 
+                                 ncol = 1)
+      
+      ## Empirical probabilities of S | Z = 1
+      prev_p_z1 = p0_z1 = matrix(data = conv_res$p1, 
+                                 ncol = 1)
+    } 
+  } 
   
   # Create even longer version of *complete* data (without missingness)
   cd_nonmiss = long_dat[1:(n0 + n1), ] ## patients with non-missing surrogate markers, both treatment groups
@@ -469,6 +491,9 @@ R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, max_it = 1E4,
          delta.s = delta_S, 
          R.s = R_S, 
          betas = new_beta, 
+         sigma = new_sigma, 
+         p0 = new_p_z0, 
+         p1 = new_p_z1,
          alphas = c(alpha0, alpha1))
   } else {
     ## Return 
@@ -476,6 +501,9 @@ R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, max_it = 1E4,
          delta.s = NA, 
          R.s = NA, 
          betas = rep(NA, length(new_beta)), 
+         sigma = NA, 
+         p0 = NA, 
+         p1 = NA,
          alphas = rep(NA, 2))
   }
 }
