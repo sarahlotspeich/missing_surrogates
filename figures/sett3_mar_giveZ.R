@@ -6,10 +6,12 @@ library(latex2exp) ## for LaTeX labels
 devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/figures/boxplot_of_estimates.R")
 
 # Read in simulation results from GitHub
-p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett3_mar_givZ/sett3_mar_givZ_seed", 0:9, ".csv")
+p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett3_mar_givZ/sett3_mar_givZ_seed", 0:19, ".csv")
 sim_res = do.call(dplyr::bind_rows, 
                   lapply(X = paste0(p, list.files(p)), 
-                         FUN = read.csv))
+                         FUN = read.csv)) |> 
+  dplyr::bind_cols(data.frame(seed = rep(x = 0:19, each = 50))) |> 
+  dplyr::select(-dplyr::contains(c("ci", "var")))
 
 # Make them long 
 res_long = sim_res |> 
