@@ -1,7 +1,7 @@
 # Load libraries
 library(kableExtra) ## for pretty LaTex tables
 
-# Source plot-making function from GitHub
+# Source table-making function from GitHub
 devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/tables/table_of_estimates.R")
 
 # Read in simulation results from GitHub
