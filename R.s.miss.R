@@ -156,16 +156,6 @@ R.s.miss.estimate = function(sone, szero, yone, yzero, type, smle,
 boot_R.s.miss <- function(data, indices) {
   d <- data[indices, ]  # resample data
   
-  ### Simulate perturbations from Expo(1)
-  Vd_one = rexp(n = length(yone), rate = 1) 
-  Vd_zero = rexp(n = length(yzero), rate = 1) 
-  
-  ### Multiply Y and S by them 
-  Yd_one = yone * Vd_one 
-  Sd_one = sone * Vd_one
-  Yd_zero = yzero * Vd_zero 
-  Sd_zero = szero * Vd_zero
-  
   ### Re-calculate weights for IPW approaches
   if (ipw) {
     #### Define non-missingness indicators for the two treatment groups
@@ -290,6 +280,7 @@ perturb_resample = function(d, sone, szero, yone, yzero, type = "robust", smle =
     
     #### Fit the IPW model 
     ipw_fit = glm(formula = as.formula(ipw_formula), 
+                  data = data.frame(m, z, s, y),
                   family = "binomial")
     
     #### Get estimated weights for each patient 
