@@ -111,6 +111,6 @@ table_of_estimates = function(data) {
                                 "Standard Errors" = 2, 
                                 "Coverage Probability" = 2), 
                      bold = TRUE) |>
-    group_rows(group_label = "PTE Estimator: Nonparametric", start_row = 1, end_row = 3, italic = TRUE) |> 
-    group_rows(group_label = "PTE Estimator: Parametric", start_row = 4, end_row = 7, italic = TRUE)
+    kableExtra::group_rows(group_label = "PTE Estimator: Nonparametric", start_row = 1, end_row = 3, italic = TRUE) |> 
+    kableExtra::group_rows(group_label = "PTE Estimator: Parametric", start_row = 4, end_row = 7, italic = TRUE)
 }
