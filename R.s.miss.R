@@ -79,74 +79,189 @@ expit = function(x){
 
 R.s.miss = function(sone, szero, yone, yzero, type = "robust", smle = TRUE,
                     wone = NULL, wzero = NULL, max_it = 1E4, tol = 1E-3, 
-                    conf.int = FALSE, ipw_formula = m ~ y * z) {
-  # Define TRUE/FALSE use IPW based on non-null weights supplied
-  ipw = !is.null(wone) & !is.null(wzero)
-
+                    conf.int = FALSE, boot = FALSE, ipw_formula = m ~ y * z) {
   # Estimate parameters
-  if (type == "model") { # Wang & Taylor's approach 
-    ## using IPW to handle missing data
-    if (ipw) {
-      est_res = R.s.miss_model_ipw(sone, szero, yone, yzero, wone, wzero)      
-    } else { ## using MLE or SMLE to handle missing data
-      est_res = R.s.miss_model_smle(sone, szero, yone, yzero, nonparam = smle, conv_res = NULL, max_it, tol)  
-    }
-  } else if (type == "robust") {
-    est_res = R.s.miss_robust_ipw(sone, szero, yone, yzero, wone, wzero)
-  }
+  est_res = R.s.miss.estimate(sone = sone, szero = szero, 
+                              yone = yone, yzero = yzero, 
+                              type = type, smle = smle,
+                              wone = wone, wzero = wzero, 
+                              max_it = max_it, tol = tol)
   
-  # Estimate standard errors (perturbation resampling)
-  if (conf.int) {
-    ## Loop over perturbation resampling D = 500 times 
-    pert_quant = do.call(what = rbind, 
-                         args = parallel::mclapply(X = 1:500, 
-                                                   FUN = perturb_resample, 
-                                                   sone = sone, szero = szero, 
-                                                   yone = yone, yzero = yzero, 
-                                                   type = type, smle = smle, 
-                                                   ipw = ipw, max_it = max_it, 
-                                                   tol = tol, conv_res = est_res))
-    
-    ## Calculate two types of 95% confidence intervals
-    ### Normal approximation 
-    #### Variance estimates for each quantity
-    var_delta = var(pert_quant$delta)
-    var_delta.s = var(pert_quant$delta.s)
-    var_R.s = var(pert_quant$R.s)
-    
-    #### Used to compute Wald-type confidence intervals
-    norm_ci_delta = est_res$delta + c(-1.96, 1.96) * sqrt(var_delta)
-    norm_ci_delta.s = est_res$delta.s + c(-1.96, 1.96) * sqrt(var_delta.s)
-    norm_ci_R.s = est_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
-    
-    ### Quantile-based 
-    quant_ci_delta = as.vector(quantile(x = pert_quant$delta, probs = c(0.025, 0.975)))
-    quant_ci_delta.s = as.vector(quantile(x = pert_quant$delta.s, probs = c(0.025, 0.975)))
-    quant_ci_R.s = as.vector(quantile(x = pert_quant$R.s, probs = c(0.025, 0.975)))
-    
-    ### Build final return list (based on R.s.estimate syntax)
-    res_list = list(
-      delta = as.numeric(est_res$delta), 
-      delta.s = as.numeric(est_res$delta.s), 
-      R.s = as.numeric(est_res$R.s), 
-      delta.var = var_delta, 
-      delta.s.var = var_delta.s, 
-      R.s.var = var_R.s, 
-      conf.int.normal.delta = norm_ci_delta, 
-      conf.int.quantile.delta = quant_ci_delta, 
-      conf.int.normal.delta.s = norm_ci_delta.s, 
-      conf.int.quantile.delta.s = quant_ci_delta.s, 
-      conf.int.normal.R.s = norm_ci_R.s, 
-      conf.int.quantile.R.s = quant_ci_R.s, 
-      conf.int.fieller.R.s = c(NA, NA)
-    )
-    
-    ### Return it 
-    return(res_list)
+  # Estimate standard errors 
+  ## Perturbation resampling
+  if (conf.int & !boot) {
+    se_res = R.s.miss.se.pert(num_pert = 500, conv_res = est_res,
+                              sone = sone, szero = szero, yone = yone, yzero = yzero, 
+                              type = type, smle = smle, wone = wone, wzero = wzero, 
+                              max_it = max_it, tol = tol, ipw_formula = ipw_formula)
+  } else if (conf.int) { # Bootstrap resampling
+    # boot_quant = boot(data = data, statistic = boot_fn, R = 1000)
   } else {
     ### Otherwise, just return point estimates (without SEs/CIs)
     return(est_res)
   }
+  
+  ### Build final return list (based on R.s.estimate syntax)
+  res_list = list(
+    delta = as.numeric(est_res$delta), 
+    delta.s = as.numeric(est_res$delta.s), 
+    R.s = as.numeric(est_res$R.s), 
+    delta.var = se_res$var_delta, 
+    delta.s.var = se_res$var_delta.s, 
+    R.s.var = se_res$var_R.s, 
+    conf.int.normal.delta = se_res$norm_ci_delta, 
+    conf.int.quantile.delta = se_res$quant_ci_delta, 
+    conf.int.normal.delta.s = se_res$norm_ci_delta.s, 
+    conf.int.quantile.delta.s = se_res$quant_ci_delta.s, 
+    conf.int.normal.R.s = se_res$norm_ci_R.s, 
+    conf.int.quantile.R.s = se_res$quant_ci_R.s, 
+    conf.int.fieller.R.s = c(NA, NA)
+  )
+  
+  ## And return it 
+  return(res_list)
+}
+
+R.s.miss.estimate = function(sone, szero, yone, yzero, type, smle,
+                             wone, wzero, max_it, tol) {
+  # Define TRUE/FALSE use IPW based on non-null weights supplied
+  ipw = !is.null(wone) & !is.null(wzero)
+  
+  # Estimate parameters
+  if (type == "model") { # Wang & Taylor's approach 
+    ## using IPW to handle missing data
+    if (ipw) {
+      est_res = R.s.miss_model_ipw(sone = sone, szero = szero, 
+                                   yone = yone, yzero = yzero,
+                                   wone = wone, wzero = wzero)      
+    } else { ## using MLE or SMLE to handle missing data
+      est_res = R.s.miss_model_smle(sone = sones, szero = szero, 
+                                    yone = yzero, yzero = yzero, 
+                                    nonparam = smle, conv_res = NULL, 
+                                    max_it = max_it, tol = tol)  
+    }
+  } else if (type == "robust") {
+    est_res = R.s.miss_robust_ipw(sone = sone, szero = szero, 
+                                  yone = yone, yzero = yzero, 
+                                  wone = wone, wzero = wzero)
+  }
+  
+  ### Return point estimates 
+  return(est_res)
+}
+
+
+# Function to apply to each bootstrap sample
+# This function returns the slope coefficient from lm(y ~ x)
+boot_R.s.miss <- function(data, indices) {
+  d <- data[indices, ]  # resample data
+  
+  ### Simulate perturbations from Expo(1)
+  Vd_one = rexp(n = length(yone), rate = 1) 
+  Vd_zero = rexp(n = length(yzero), rate = 1) 
+  
+  ### Multiply Y and S by them 
+  Yd_one = yone * Vd_one 
+  Sd_one = sone * Vd_one
+  Yd_zero = yzero * Vd_zero 
+  Sd_zero = szero * Vd_zero
+  
+  ### Re-calculate weights for IPW approaches
+  if (ipw) {
+    #### Define non-missingness indicators for the two treatment groups
+    mone = as.numeric(!is.na(Sd_one))
+    mzero = as.numeric(!is.na(Sd_zero))
+    
+    #### Define vectors of variables for model (all of them just in case)
+    m = c(mone, mzero)
+    z = rep(x = c(1, 0), times = c(length(Sd_one), length(Sd_zero)))
+    s = c(Sd_one, Sd_zero)
+    y = c(Yd_one, Yd_zero)
+    
+    #### Fit the IPW model 
+    ipw_fit = glm(formula = as.formula(ipw_formula), 
+                  family = "binomial")
+    
+    #### Get estimated weights for each patient 
+    w = predict(object = ipw_fit, 
+                type = "response")
+    
+    #### Split weights into vectors for treatment/control
+    wd_one = w[1:length(Sd_one)]
+    wd_zero = w[-c(1:length(Sd_one))]
+  }
+  ### Re-estimate parameters using perturbed data
+  if (type == "model") { # Wang & Taylor's approach 
+    #### Using IPW to handle missing data
+    if (ipw) {
+      res_d = R.s.miss_model_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)      
+    } else { #### using SMLE to handle missing data
+      res_d = R.s.miss_model_smle(Sd_one, Sd_zero, Yd_one, Yd_zero, nonparam = smle, conv_res = conv_res, max_it, tol)  
+    }
+  } else if (type == "robust") {
+    res_d = R.s.miss_robust_ipw(Sd_one, Sd_zero, Yd_one, Yd_zero, wd_one, wd_zero)
+  }
+  return(cbind(it = d, with(res_d, data.frame(delta, delta.s, R.s))))
+  
+  
+  model <- lm(y ~ x, data = d)
+  return(coef(model))  # return slope
+}
+
+R.s.miss.se.boot = function(num_boot, conv_res, sone, szero, yone, yzero, 
+                            type, smle, wone, wzero, max_it, tol, ipw_formula) {
+  
+}
+
+R.s.miss.se.pert = function(num_pert, conv_res, sone, szero, yone, yzero, 
+                            type, smle, wone, wzero, max_it, tol, ipw_formula) {
+  # Define TRUE/FALSE use IPW based on non-null weights supplied
+  ipw = !is.null(wone) & !is.null(wzero)
+  
+  # Loop over perturbation resampling D = 500 times 
+  pert_quant = do.call(what = rbind, 
+                       args = #parallel::mclapply(X = 1:num_pert, 
+                              sapply(X = 1:num_pert, 
+                                    FUN = perturb_resample, 
+                                    sone = sone, szero = szero, 
+                                    yone = yone, yzero = yzero, 
+                                    type = type, smle = smle, 
+                                    ipw = ipw, max_it = max_it, 
+                                    tol = tol, conv_res = conv_res, 
+                                    ipw_formula = ipw_formula, 
+                                    simplify = FALSE))
+  
+  # Calculate two types of 95% confidence intervals
+  ## Normal approximation 
+  ### Variance estimates for each quantity
+  var_delta = var(pert_quant$delta)
+  var_delta.s = var(pert_quant$delta.s)
+  var_R.s = var(pert_quant$R.s)
+  
+  ### Used to compute Wald-type confidence intervals
+  norm_ci_delta = conv_res$delta + c(-1.96, 1.96) * sqrt(var_delta)
+  norm_ci_delta.s = conv_res$delta.s + c(-1.96, 1.96) * sqrt(var_delta.s)
+  norm_ci_R.s = conv_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
+  
+  ## Quantile-based 
+  quant_ci_delta = as.vector(quantile(x = pert_quant$delta, probs = c(0.025, 0.975)))
+  quant_ci_delta.s = as.vector(quantile(x = pert_quant$delta.s, probs = c(0.025, 0.975)))
+  quant_ci_R.s = as.vector(quantile(x = pert_quant$R.s, probs = c(0.025, 0.975)))
+  
+  ## Return 
+  return(
+    res_list = list(
+      var_delta = var_delta, 
+      var_delta.s = var_delta.s, 
+      var_R.s = var_R.s, 
+      norm_ci_delta = norm_ci_delta, 
+      quant_ci_delta = quant_ci_delta, 
+      norm_ci_delta.s = norm_ci_delta.s, 
+      quant_ci_delta.s = quant_ci_delta.s, 
+      norm_ci_R.s = norm_ci_R.s, 
+      quant_ci_R.s = quant_ci_R.s
+    )
+  )
 }
 
 perturb_resample = function(d, sone, szero, yone, yzero, type = "robust", smle = TRUE, ipw,
