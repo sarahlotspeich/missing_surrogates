@@ -94,8 +94,7 @@ R.s.miss = function(sone, szero, yone, yzero, wone = NULL, wzero = NULL,
   } else if (conf.int) { # Bootstrap resampling
     se_res = R.s.miss.se.boot(num_boot = 1000, conv_res = est_res, 
                               sone = sone, szero = szero, yone = yone, yzero = yzero, 
-                              type = type, ipw = ipw, wone = wone, wzero = wzero, 
-                              max_it = max_it, tol = tol, ipw_formula = ipw_formula)
+                              type = type, max_it = max_it, tol = tol, ipw_formula = ipw_formula)
   } else {
     ### Otherwise, just return point estimates (without SEs/CIs)
     return(est_res)
@@ -175,7 +174,7 @@ R.s.miss.estimate = function(weight_perturb = NULL, sone, szero, yone, yzero, wo
   } else if (type == "model") { # Wang & Taylor's approach 
     est_res = R.s.miss_model_smle(sone = sone, 
                                   szero = szero, 
-                                  yone = yzero, 
+                                  yone = yone, 
                                   yzero = yzero, 
                                   nonparam = TRUE, 
                                   conv_res = conv_res, 
@@ -227,7 +226,7 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
 # Perturbation resampling SEs 
 R.s.miss.se.pert = function(num_pert, conv_res, sone, szero, yone, yzero, 
                             ipw_formula, type, max_it, tol) {
-  # Create (n0 + n1) x 500 matrix of perturbations
+  # Create (n0 + n1) x num_pert matrix of perturbations
   weight_perturb = matrix(rexp(n = num_pert * (length(yone) + length(yzero)), rate = 1), 
                           ncol = num_pert)
   
@@ -245,6 +244,7 @@ R.s.miss.se.pert = function(num_pert, conv_res, sone, szero, yone, yzero,
                                     max_it = max_it, 
                                     tol = tol)
                        )
+  
   ## Create separate vectors for perturbed quantities
   pert_delta = unlist(pert_quant[, "delta"])
   pert_delta.s = unlist(pert_quant[, "delta.s"])
@@ -539,9 +539,7 @@ R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, conv_res, max
   }
 }
 
-# Function to apply to each bootstrap sample
-# This function returns the slope coefficient from lm(y ~ x)
-boot_R.s.miss <- function(data, indices, type, ipw, ipw_formula, conv_res, max_it, tol) {
+boot_R.s.miss <- function(data, indices, type, ipw_formula, conv_res, max_it, tol) {
   ## Resample data with replacement (but stratified on treatment)
   d <- data[indices, ]  
   
@@ -553,63 +551,40 @@ boot_R.s.miss <- function(data, indices, type, ipw, ipw_formula, conv_res, max_i
   Yd_zero = d$y[which_zzero]
   Yd_one = d$y[which_zone]
   
-  ## Re-calculate weights for IPW approaches
-  if (ipw) {
-    ### Fit the IPW model 
-    ipw_fit = glm(formula = as.formula(ipw_formula), 
-                  data = d, 
-                  family = "binomial")
-    
-    ### Get estimated weights for each patient 
-    w = predict(object = ipw_fit, 
-                type = "response")
-    
-    #### Split weights into vectors for treatment/control
-    wd_zero = w[which_zzero]
-    wd_one = w[which_zone]
-  }
-  ### Re-estimate parameters using perturbed data
-  if (type == "model") { # Wang & Taylor's approach 
-    #### Using IPW to handle missing data
-    if (ipw) {
-      res_d = R.s.miss_model_ipw(sone = Sd_one, szero = Sd_zero, 
-                                 yone = Yd_one, yzero = Yd_zero, 
-                                 wone = wd_one, wzero = wd_zero)      
-    } else { #### using SMLE to handle missing data
-      res_d = R.s.miss_model_smle(sone = Sd_one, szero = Sd_zero, 
-                                  yone = Yd_one, yzero = Yd_zero, 
-                                  nonparam = smle, conv_res = conv_res, 
-                                  max_it = max_it, tol = tol)  
-    }
-  } else if (type == "robust") {
-    res_d = R.s.miss_robust_ipw(sone = Sd_one, szero = Sd_zero, 
-                                yone = Yd_one, yzero = Yd_zero, 
-                                wone = wd_one, wzero = wd_zero)
-  }
+  res_d = R.s.miss.estimate(sone = Sd_one, 
+                            szero = Sd_zero, 
+                            yone = Yd_one, 
+                            yzero = Yd_zero, 
+                            wone = NULL, 
+                            wzero = NULL, 
+                            conv_res = conv_res, 
+                            type = type, 
+                            max_it = max_it, 
+                            tol = tol, 
+                            ipw_formula = ipw_formula)
+  
   return(with(res_d, c(delta, delta.s, R.s)))
 }
 
 R.s.miss.se.boot = function(num_boot, conv_res, sone, szero, yone, yzero, 
-                            type, ipw, smle, wone, wzero, max_it, tol, ipw_formula) {
+                            type, ipw, smle, max_it, tol, ipw_formula) {
   # Build long dataset: (y, z, s, w, m)
   long_dat = data.frame(y = c(yone, yzero), 
                         z = rep(x = c(1, 0), 
                                 times = c(length(yone), length(yzero))), 
                         s = c(sone, szero), 
-                        w = c(wone, wzero), 
                         m = c(as.numeric(!is.na(sone)), as.numeric(!is.na(szero))))
   
   # Bootstrap resample from long dataset and fit estimator to it 
-  boot_quant = boot(data = long_dat, 
-                    statistic = boot_R.s.miss, 
-                    R = num_boot, 
-                    strata = long_dat$z, 
-                    type = type,
-                    ipw = ipw,
-                    ipw_formula = ipw_formula, 
-                    conv_res = conv_res, 
-                    max_it = max_it, 
-                    tol = tol)
+  boot_quant = boot::boot(data = long_dat, 
+                          statistic = boot_R.s.miss, 
+                          R = num_boot, 
+                          strata = long_dat$z, 
+                          type = type,
+                          ipw_formula = ipw_formula, 
+                          conv_res = conv_res, 
+                          max_it = max_it, 
+                          tol = tol)
   
   # Calculate two types of 95% confidence intervals
   ## Normal approximation 
