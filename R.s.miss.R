@@ -92,7 +92,7 @@ R.s.miss = function(sone, szero, yone, yzero, wone = NULL, wzero = NULL,
                               sone = sone, szero = szero, yone = yone, yzero = yzero, 
                               type = type, max_it = max_it, tol = tol, ipw_formula = ipw_formula)
   } else if (conf.int) { # Bootstrap resampling
-    se_res = R.s.miss.se.boot(num_boot = 1000, conv_res = est_res, 
+    se_res = R.s.miss.se.boot(num_boot = 500, conv_res = est_res, 
                               sone = sone, szero = szero, yone = yone, yzero = yzero, 
                               type = type, max_it = max_it, tol = tol, ipw_formula = ipw_formula)
   } else {
@@ -186,7 +186,7 @@ R.s.miss.estimate = function(weight_perturb = NULL, sone, szero, yone, yzero, wo
   return(est_res)
 }
 
-# Inverse probability weighting estimators
+# Inverse probability weighting estimators -- type = "model" or "roboust"
 R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
   ## Define non-missingness indicators for the two treatment groups
   mone = as.numeric(!is.na(sone))
@@ -223,67 +223,7 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
   }
 }
 
-# Perturbation resampling SEs 
-R.s.miss.se.pert = function(num_pert, conv_res, sone, szero, yone, yzero, 
-                            ipw_formula, type, max_it, tol) {
-  # Create (n0 + n1) x num_pert matrix of perturbations
-  weight_perturb = matrix(rexp(n = num_pert * (length(yone) + length(yzero)), rate = 1), 
-                          ncol = num_pert)
-  
-  # Apply the estimation functions with it 
-  pert_quant = do.call(what = rbind, 
-                       args = apply(X = weight_perturb, 
-                                    MARGIN = 2, ## apply across columns 
-                                    FUN = R.s.miss.estimate, 
-                                    sone = sone, 
-                                    szero = szero, 
-                                    yone = yone, 
-                                    yzero = yzero, 
-                                    ipw_formula = ipw_formula, 
-                                    type = type, 
-                                    max_it = max_it, 
-                                    tol = tol)
-                       )
-  
-  ## Create separate vectors for perturbed quantities
-  pert_delta = unlist(pert_quant[, "delta"])
-  pert_delta.s = unlist(pert_quant[, "delta.s"])
-  pert_R.s = unlist(pert_quant[, "R.s"])
-  
-  # Calculate two types of 95% confidence intervals
-  ## Normal approximation 
-  ### Variance estimates for each quantity
-  var_delta = var(pert_delta)
-  var_delta.s = var(pert_delta.s)
-  var_R.s = var(pert_R.s)
-  
-  ### Used to compute Wald-type confidence intervals
-  norm_ci_delta = conv_res$delta + c(-1.96, 1.96) * sqrt(var_delta)
-  norm_ci_delta.s = conv_res$delta.s + c(-1.96, 1.96) * sqrt(var_delta.s)
-  norm_ci_R.s = conv_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
-  
-  ## Quantile-based 
-  quant_ci_delta = as.vector(quantile(x = pert_delta, probs = c(0.025, 0.975)))
-  quant_ci_delta.s = as.vector(quantile(x = pert_delta.s, probs = c(0.025, 0.975)))
-  quant_ci_R.s = as.vector(quantile(x = pert_R.s, probs = c(0.025, 0.975)))
-  
-  ## Return 
-  return(
-    list(
-      var_delta = var_delta, 
-      var_delta.s = var_delta.s, 
-      var_R.s = var_R.s, 
-      norm_ci_delta = norm_ci_delta, 
-      quant_ci_delta = quant_ci_delta, 
-      norm_ci_delta.s = norm_ci_delta.s, 
-      quant_ci_delta.s = quant_ci_delta.s, 
-      norm_ci_R.s = norm_ci_R.s, 
-      quant_ci_R.s = quant_ci_R.s
-    )
-  )
-}
-
-
+# Sieve maximum likelihood estimator -- Only type = "model"
 R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, conv_res, max_it = 1E4, tol = 1E-3, full_output = FALSE) {
   # Save useful constants 
   N0 = length(szero) ## number in control group
@@ -539,6 +479,67 @@ R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, conv_res, max
   }
 }
 
+# Perturbation resampling SEs 
+R.s.miss.se.pert = function(num_pert, conv_res, sone, szero, yone, yzero, 
+                            ipw_formula, type, max_it, tol) {
+  # Create (n0 + n1) x num_pert matrix of perturbations
+  weight_perturb = matrix(rexp(n = num_pert * (length(yone) + length(yzero)), rate = 1), 
+                          ncol = num_pert)
+  
+  # Apply the estimation functions with it 
+  pert_quant = do.call(what = rbind, 
+                       args = apply(X = weight_perturb, 
+                                    MARGIN = 2, ## apply across columns 
+                                    FUN = R.s.miss.estimate, 
+                                    sone = sone, 
+                                    szero = szero, 
+                                    yone = yone, 
+                                    yzero = yzero, 
+                                    ipw_formula = ipw_formula, 
+                                    type = type, 
+                                    max_it = max_it, 
+                                    tol = tol)
+                       )
+  
+  ## Create separate vectors for perturbed quantities
+  pert_delta = unlist(pert_quant[, "delta"])
+  pert_delta.s = unlist(pert_quant[, "delta.s"])
+  pert_R.s = unlist(pert_quant[, "R.s"])
+  
+  # Calculate two types of 95% confidence intervals
+  ## Normal approximation 
+  ### Variance estimates for each quantity
+  var_delta = var(pert_delta)
+  var_delta.s = var(pert_delta.s)
+  var_R.s = var(pert_R.s)
+  
+  ### Used to compute Wald-type confidence intervals
+  norm_ci_delta = conv_res$delta + c(-1.96, 1.96) * sqrt(var_delta)
+  norm_ci_delta.s = conv_res$delta.s + c(-1.96, 1.96) * sqrt(var_delta.s)
+  norm_ci_R.s = conv_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
+  
+  ## Quantile-based 
+  quant_ci_delta = as.vector(quantile(x = pert_delta, probs = c(0.025, 0.975)))
+  quant_ci_delta.s = as.vector(quantile(x = pert_delta.s, probs = c(0.025, 0.975)))
+  quant_ci_R.s = as.vector(quantile(x = pert_R.s, probs = c(0.025, 0.975)))
+  
+  ## Return 
+  return(
+    list(
+      var_delta = var_delta, 
+      var_delta.s = var_delta.s, 
+      var_R.s = var_R.s, 
+      norm_ci_delta = norm_ci_delta, 
+      quant_ci_delta = quant_ci_delta, 
+      norm_ci_delta.s = norm_ci_delta.s, 
+      quant_ci_delta.s = quant_ci_delta.s, 
+      norm_ci_R.s = norm_ci_R.s, 
+      quant_ci_R.s = quant_ci_R.s
+    )
+  )
+}
+
+# Bootstrap resampling SEs
 boot_R.s.miss <- function(data, indices, type, ipw_formula, conv_res, max_it, tol) {
   ## Resample data with replacement (but stratified on treatment)
   d <- data[indices, ]  
@@ -575,21 +576,44 @@ R.s.miss.se.boot = function(num_boot, conv_res, sone, szero, yone, yzero,
                         s = c(sone, szero), 
                         m = c(as.numeric(!is.na(sone)), as.numeric(!is.na(szero))))
   
+  # Initialize empty dataframe to hold bootstrapped quantities
+  boot_quant = data.frame(delta = rep(NA, num_boot), 
+                          delta.s = rep(NA, num_boot), 
+                          R.s = rep(NA, num_boot))
+  
   # Bootstrap resample from long dataset and fit estimator to it 
-  boot_quant = boot::boot(data = long_dat, 
-                          statistic = boot_R.s.miss, 
-                          R = num_boot, 
-                          strata = long_dat$z, 
-                          type = type,
-                          ipw_formula = ipw_formula, 
-                          conv_res = conv_res, 
-                          max_it = max_it, 
-                          tol = tol)
+  for (b in 1:num_boot) {
+    ## Indices for which rows to resample, preserving the treatment/control split 
+    ind_b = c(sample(x = which(long_dat$z == 0), 
+                     size = length(which(long_dat$z == 0)), 
+                     replace = TRUE), 
+              sample(x = which(long_dat$z == 1), 
+                     size = length(which(long_dat$z == 1)), 
+                     replace = TRUE))
+    
+    boot_quant[b, ] = boot_R.s.miss(data = long_dat, 
+                                    indices = ind_b, 
+                                    type = type,
+                                    ipw_formula = ipw_formula, 
+                                    conv_res = NULL, 
+                                    max_it = max_it, 
+                                    tol = tol)
+  }
+  
+  # boot_quant = boot::boot(long_dat, 
+  #                         boot_R.s.miss, 
+  #                         R = num_boot, 
+  #                         strata = long_dat$z, 
+  #                         type = type,
+  #                         ipw_formula = ipw_formula, 
+  #                         conv_res = conv_res, 
+  #                         max_it = max_it, 
+  #                         tol = tol)
   
   # Calculate two types of 95% confidence intervals
   ## Normal approximation 
   ### Variance estimates for each quantity
-  var_all = apply(X = boot_quant$t, 
+  var_all = apply(X = boot_quant, 
                   MARGIN = 2, 
                   FUN = var)
   var_delta = var_all[1]
@@ -602,7 +626,7 @@ R.s.miss.se.boot = function(num_boot, conv_res, sone, szero, yone, yzero,
   norm_ci_R.s = conv_res$R.s + c(-1.96, 1.96) * sqrt(var_R.s)
   
   ## Quantile-based 
-  quant_ci_all = apply(X = boot_quant$t, 
+  quant_ci_all = apply(X = boot_quant, 
                        MARGIN = 2, 
                        FUN = function(x) quantile(x = x, probs = c(0.025, 0.975)))
   quant_ci_delta = as.vector(quant_ci_all[, 1])
