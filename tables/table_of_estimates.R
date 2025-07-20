@@ -86,12 +86,21 @@ table_of_estimates = function(data) {
   }
   
   # Make a table (formatted for LaTex)
+  gs_se = emp_se |> 
+    dplyr::filter(grepl(pattern = "gs", x = method)) |> 
+    dplyr::rename(gs_se = se)
+  gs_nonparam_se = gs_se$gs_se[gs_se$method == "gs_nonparam"]
+  gs_param_se = gs_se$gs_se[gs_se$method == "gs_param"]
+  
   emp_bias |> 
     dplyr::left_join(emp_se) |> 
     dplyr::left_join(avg_se) |> 
     dplyr::left_join(norm_cp) |> 
     dplyr::left_join(quant_cp) |> 
     dplyr::mutate(
+      re = (1 / se ^ 2) / (dplyr::if_else(condition = grepl("nonparam", method), 
+                                          true = 1 / gs_nonparam_se ^ 2, 
+                                          false = 1 / gs_param_se ^ 2)), 
       method = factor(x = method, 
                       levels = c("gs_nonparam", "cc_nonparam", "ipw_nonparam", 
                                  "gs_param", "cc_param", "ipw_param", "smle_param"), 
@@ -99,13 +108,13 @@ table_of_estimates = function(data) {
                                  "Gold Standard (P)", "Complete Case (P)", "IPW (P)", "SMLE"))
     ) |> 
     dplyr::arrange(method) |> 
-    mutate_at(.vars = c("bias", "perc_bias", "se", "see", "norm_cp", "quant_cp"), 
+    mutate_at(.vars = c("bias", "perc_bias", "se", "see", "norm_cp", "quant_cp", "re"), 
               .funs = format_num) |>
     kable(format = "latex", 
           booktabs = TRUE, 
           escape = FALSE, 
           align = "rrrcccc", 
-          col.names = c("Method", "Bias", "\\% Bias", "ESE", "ASE", "CP-N", "CP-Quant")) |> 
+          col.names = c("Method", "Bias", "\\% Bias", "ESE", "ASE", "CP-N", "CP-Quant", "RE")) |> 
     kable_styling() |> 
     kableExtra::group_rows(group_label = "PTE Estimator: Nonparametric", start_row = 1, end_row = 3, italic = TRUE) |> 
     kableExtra::group_rows(group_label = "PTE Estimator: Parametric", start_row = 4, end_row = 7, italic = TRUE)
