@@ -113,7 +113,7 @@ table_of_estimates = function(data) {
     kable(format = "latex", 
           booktabs = TRUE, 
           escape = FALSE, 
-          align = "rrrcccc", 
+          align = "rrrccccc", 
           col.names = c("Method", "Bias", "\\% Bias", "ESE", "ASE", "CP-N", "CP-Quant", "RE")) |> 
     kable_styling() |> 
     kableExtra::group_rows(group_label = "PTE Estimator: Nonparametric", start_row = 1, end_row = 3, italic = TRUE) |> 
