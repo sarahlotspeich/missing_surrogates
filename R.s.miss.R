@@ -214,12 +214,48 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
          delta.s = delta_S, 
          R.s = R_S)
   } else if (type == "model") {
-    R.s.estimate(sone = wone[mone == 1] * sone[mone == 1], 
-                 szero = wzero[mzero == 1] * szero[mzero == 1], 
-                 yone = yone[mone == 1], 
-                 yzero = yzero[mzero == 1], 
-                 type = type, 
-                 conf.int = FALSE)
+    # Create long version of *observed* data (with missingness)
+    long_dat = data.frame(Y = c(yzero, yone), ## primary outcome 
+                          Z = c(rep(c(0, 1), times = c(none, nzero))), ## treatment group
+                          S = c(szero, sone), ## surrogate marker 
+                          R = as.numeric(!is.na(c(szero, sone))), ## (non-)missingness indicator
+                          W = c(wzero, wone)) ## weight 
+    long_dat = long_dat[order(long_dat$S, decreasing = TRUE), ] ## order to put non-missing first
+    
+    ## Model Y ~ S * Z (saturated)
+    modYgivSZ = lm(formula = Y ~ Z * S, 
+                   data = long_dat, 
+                   weights = W)
+    ## Separate coefficients
+    beta0 = modYgivSZ$coefficients[1]
+    beta1 = modYgivSZ$coefficients[2]
+    beta2 = modYgivSZ$coefficients[3]
+    beta3 = modYgivSZ$coefficients[4]
+    
+    ## Model S ~ Z
+    modSgivZ = lm(formula = S ~ Z, 
+                  data = long_dat, 
+                  weights = W)
+    ## Separate coefficients
+    alpha0 = modSgivZ$coefficients[1]
+    alpha1 = alpha0 + modSgivZ$coefficients[2]
+    
+    ## Construct percent treatment effect explained
+    delta = beta1 + (beta2 + beta3) * alpha1 - beta2 * alpha0
+    delta_S = beta1 + beta3 * alpha0
+    R_S = 1 - delta_S / delta
+    
+    ## Return 
+    list(delta = delta, 
+         delta.s = delta_S, 
+         R.s = R_S)
+    
+    # R.s.estimate(sone = wone[mone == 1] * sone[mone == 1], 
+    #              szero = wzero[mzero == 1] * szero[mzero == 1], 
+    #              yone = yone[mone == 1], 
+    #              yzero = yzero[mzero == 1], 
+    #              type = type, 
+    #              conf.int = FALSE)
   }
 }
 
