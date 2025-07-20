@@ -6,10 +6,7 @@ library(latex2exp)
 devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/figures/boxplot_of_estimates.R")
 
 # Read in simulation results
-p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett2_mar_givY/sett2_mar_givY_seed", 0:19, ".csv")
-sim_res = do.call(dplyr::bind_rows, 
-                  lapply(X = paste0(p, list.files(p)), 
-                         FUN = read.csv)) |> 
+sim_res = read.csv("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett2_mar_givY.csv") |> 
   dplyr::bind_cols(data.frame(seed = rep(x = 0:19, each = 50))) |> 
   dplyr::select(-dplyr::contains(c("ci", "var")))
 
@@ -48,5 +45,5 @@ res_long = sim_res |>
 # Make a boxplot 
 res_long |> 
   boxplot_of_estimates()
-ggsave(filename = "~/Documents/missing_surrogates/figures/sett2_mar_givY_boxplot.pdf", 
+ggsave(filename = "figures/sett2_mar_givY_boxplot.pdf", 
        device = "pdf", width = 7, height = 5)
