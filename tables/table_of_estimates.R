@@ -105,12 +105,8 @@ table_of_estimates = function(data) {
           booktabs = TRUE, 
           escape = FALSE, 
           align = "rrrcccc", 
-          col.names = c("Method", "Bias", "\\% Bias", "Emp.", "Avg.", "Norm.", "Quant.")) |> 
+          col.names = c("Method", "Bias", "\\% Bias", "ESE", "ASE", "CP-N", "CP-Quant")) |> 
     kable_styling() |> 
-    add_header_above(header = c(" " = 3, 
-                                "Standard Errors" = 2, 
-                                "Coverage Probability" = 2), 
-                     bold = TRUE) |>
     kableExtra::group_rows(group_label = "PTE Estimator: Nonparametric", start_row = 1, end_row = 3, italic = TRUE) |> 
     kableExtra::group_rows(group_label = "PTE Estimator: Parametric", start_row = 4, end_row = 7, italic = TRUE)
 }
