@@ -8,12 +8,13 @@ devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_s
 # Read in simulation results
 sim_res = read.csv("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett2_mar_givY.csv") |> 
   dplyr::bind_cols(data.frame(seed = rep(x = 0:19, each = 50))) |> 
-  dplyr::select(-dplyr::contains(c("ci", "var")))
+  dplyr::select(-seed, -dplyr::contains(c("ci", "var")))
 
 # Make them long 
 res_long = sim_res |> 
   tidyr::pivot_longer(cols = gs_nonparam_delta:smle_param_R.s, 
-                      names_to = "method_quantity", values_to = "est") |> 
+                      names_to = "method_quantity", 
+                      values_to = "est") |> 
   dplyr::mutate(quantity = sub(pattern = ".*_", 
                                replacement = "", 
                                x = method_quantity), 

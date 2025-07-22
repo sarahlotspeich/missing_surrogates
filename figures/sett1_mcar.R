@@ -8,7 +8,7 @@ devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_s
 # Read in simulation results from GitHub
 sim_res = read.csv("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett1_mcar.csv") |> 
   dplyr::bind_cols(data.frame(seed = rep(x = 0:19, each = 50))) |> 
-  dplyr::select(-dplyr::contains(c("ci", "var")))
+  dplyr::select(-seed, -dplyr::contains(c("ci", "var")))
 
 # Make them long 
 res_long = sim_res |> 
