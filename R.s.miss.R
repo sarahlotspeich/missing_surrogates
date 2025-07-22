@@ -226,19 +226,21 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
     modYgivSZ = lm(formula = Y ~ Z * S, 
                    data = long_dat, 
                    weights = W)
+    
     ## Separate coefficients
-    beta0 = modYgivSZ$coefficients[1]
-    beta1 = modYgivSZ$coefficients[2]
-    beta2 = modYgivSZ$coefficients[3]
-    beta3 = modYgivSZ$coefficients[4]
+    beta0 = as.numeric(modYgivSZ$coefficients["(Intercept)"])
+    beta1 = as.numeric(modYgivSZ$coefficients["Z"])
+    beta2 = as.numeric(modYgivSZ$coefficients["S"])
+    beta3 = as.numeric(modYgivSZ$coefficients["Z:S"])
     
     ## Model S ~ Z
     modSgivZ = lm(formula = S ~ Z, 
                   data = long_dat, 
                   weights = W)
+    
     ## Separate coefficients
-    alpha0 = modSgivZ$coefficients[1]
-    alpha1 = alpha0 + modSgivZ$coefficients[2]
+    alpha0 = as.numeric(modSgivZ$coefficients["(Intercept)"])
+    alpha1 = alpha0 + as.numeric(modSgivZ$coefficients["Z"])
     
     ## Construct percent treatment effect explained
     delta = beta1 + (beta2 + beta3) * alpha1 - beta2 * alpha0
