@@ -158,8 +158,8 @@ R.s.miss.estimate = function(weight_perturb = NULL, sone, szero, yone, yzero, wo
                     family = "binomial")
       
       ### Get estimated weights (probabilities of being non-missing) for each observation 
-      w = predict(object = ipw_fit, 
-                  type = "response")
+      w = 1 / predict(object = ipw_fit, 
+                      type = "response")
       
       ### Split weights into vectors for treatment/control
       wone = w[1:length(sone)]
