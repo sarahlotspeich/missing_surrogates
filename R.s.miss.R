@@ -198,8 +198,8 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
   
   ## Calculate PTE 
   if (type == "robust") {
-    delta = sum((1 / wone[mone == 1]) * yone[mone == 1]) / none - 
-      sum((1 / wzero[mzero == 1]) * yzero[mzero == 1]) / nzero
+    delta = sum(wone[mone == 1] * yone[mone == 1]) / none - 
+      sum(wzero[mzero == 1] * yzero[mzero == 1]) / nzero
     delta_S = delta.s.single(sone = sone[mone == 1], 
                              szero = szero[mzero == 1], 
                              yone = yone[mone == 1], 
