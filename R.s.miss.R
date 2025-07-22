@@ -105,9 +105,9 @@ R.s.miss = function(sone, szero, yone, yzero, wone = NULL, wzero = NULL,
     delta = as.numeric(est_res$delta), 
     delta.s = as.numeric(est_res$delta.s), 
     R.s = as.numeric(est_res$R.s), 
-    delta.var = se_res$var_delta, 
-    delta.s.var = se_res$var_delta.s, 
-    R.s.var = se_res$var_R.s, 
+    delta.var = as.numeric(se_res$var_delta), 
+    delta.s.var = as.numeric(se_res$var_delta.s), 
+    R.s.var = as.numeric(se_res$var_R.s), 
     conf.int.normal.delta = se_res$norm_ci_delta, 
     conf.int.quantile.delta = se_res$quant_ci_delta, 
     conf.int.normal.delta.s = se_res$norm_ci_delta.s, 
@@ -246,9 +246,9 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
     R_S = 1 - delta_S / delta
     
     ## Return 
-    list(delta = delta, 
-         delta.s = delta_S, 
-         R.s = R_S)
+    list(delta = as.numeric(delta), 
+         delta.s = as.numeric(delta_S), 
+         R.s = as.numeric(R_S))
     
     # R.s.estimate(sone = wone[mone == 1] * sone[mone == 1], 
     #              szero = wzero[mzero == 1] * szero[mzero == 1], 
