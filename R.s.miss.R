@@ -28,7 +28,7 @@ Kern.FUN <- function(zz,zi,bw) ## returns an (n x nz) matrix ##
 pred.smooth <-function(zz,zi.one, bw=NULL,y1, weight=NULL) {
   if(is.null(bw)) { bw = bw.nrd(zz)/((length(zz))^(.10))}
   if(is.null(weight)) {weight = rep(1, length(y1))}
-  return(sum(Kern.FUN(zz,zi.one,bw=bw)*y1*(1/weight))/sum(Kern.FUN(zz,zi.one,bw=bw)*1/weight))
+  return(sum(Kern.FUN(zz,zi.one,bw=bw)*y1*(weight))/sum(Kern.FUN(zz,zi.one,bw=bw)*weight))
 }
 
 delta.s.single = function(sone,szero,yone,yzero, h.select = NULL, weight.1 = NULL, weight.0=NULL, n0.all=NULL) {
@@ -65,7 +65,7 @@ delta.s.single = function(sone,szero,yone,yzero, h.select = NULL, weight.1 = NUL
           mu.1.s0[o] = new.est[1]   #in case there are multiple matches
         }
       }}
-    delta.s = sum((1/weight.0)*mu.1.s0)/n0.all-sum((1/weight.0)*yzero)/n0.all
+    delta.s = sum((weight.0)*mu.1.s0)/n0.all-sum((weight.0)*yzero)/n0.all
   }
   return(delta.s)
 }
