@@ -216,7 +216,7 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
   } else if (type == "model") {
     # Create long version of *observed* data (with missingness)
     long_dat = data.frame(Y = c(yzero, yone), ## primary outcome 
-                          Z = c(rep(c(0, 1), times = c(none, nzero))), ## treatment group
+                          Z = c(rep(c(0, 1), times = c(nzero, none))), ## treatment group
                           S = c(szero, sone), ## surrogate marker 
                           R = as.numeric(!is.na(c(szero, sone))), ## (non-)missingness indicator
                           W = c(wzero, wone)) ## weight 
@@ -262,258 +262,239 @@ R.s.miss_ipw = function(sone, szero, yone, yzero, wone, wzero, type) {
 }
 
 # Sieve maximum likelihood estimator -- Only type = "model"
-R.s.miss_model_smle = function(sone, szero, yone, yzero, nonparam, conv_res, max_it = 1E4, tol = 1E-3, full_output = FALSE) {
-  # Save useful constants 
-  N0 = length(szero) ## number in control group
-  N1 = length(sone) ## number in treatment group
-  n = N0 + N1 ## total sample size
-  
-  # Create long version of *observed* data (with missingness)
-  long_dat = data.frame(Y = c(yzero, yone), ## primary outcome 
-                        Z = c(rep(c(0, 1), times = c(N0, N1))), ## treatment group
-                        S = c(szero, sone), ## surrogate marker 
-                        R = as.numeric(!is.na(c(szero, sone)))) ## (non-)missingness indicator
-  long_dat = long_dat[order(long_dat$S, decreasing = TRUE), ] ## order to put non-missing first
-  long_dat$ID = 1:n ## create an ID
-  
-  ## Split the observed data by treatment group (with missingness)
-  long_dat_z0 = long_dat[long_dat$Z == 0, ] ## control group
-  long_dat_z1 = long_dat[long_dat$Z == 1, ] ## treatment group
-  
-  # Create initial values 
-  ## Linear regression of Y ~ Z + S + X x Z
-  prev_beta = beta0 = rep(0, 4)
-  prev_sigma = sigma0 = 0.1
-  # cc_fit = lm(formula = Y ~ Z * S, 
-  #             data = long_dat)
-  # prev_beta = beta0 = as.numeric(cc_fit$coefficients)
-  # prev_sigma = sigma0 = sigma(cc_fit)
-  
-  # Count and save unique non-missing values of the surrogate
-  ## Control group
-  S_z0 = unique(long_dat_z0$S[long_dat_z0$R == 1]) ## unique values of non-missing surrogates (ordered descendingly)
-  m_z0 = length(S_z0) ## number of unique non-missing surrogates
-  n0 = sum(long_dat_z0$R == 1) ## number of patients with non-missing surrogates
-  
-  ## Treatment group
-  S_z1 = unique(long_dat_z1$S[long_dat_z1$R == 1]) ## unique values of non-missing surrogates (ordered descendingly)
-  m_z1 = length(S_z1) ## number of unique non-missing surrogates
-  n1 = sum(long_dat_z1$R == 1) ## number of patients with non-missing surrogates
-  
-  # Conditional distribution of S given Z
+R.s.miss_model_smle <- function(sone, szero, yone, yzero,
+                                nonparam = TRUE,
+                                conv_res = NULL,
+                                max_it = 1e4,
+                                tol = 1e-3,
+                                full_output = FALSE) {
+  # sizes
+  N0 <- length(szero)
+  N1 <- length(sone)
+  n  <- N0 + N1
+
+  # Build long observed data in natural order; create ID column
+  long_dat <- data.frame(
+    Y = c(yzero, yone),
+    Z = c(rep(0, N0), rep(1, N1)),
+    S = c(szero, sone),
+    R = as.numeric(!is.na(c(szero, sone))),
+    ID = seq_len(n)
+  )
+
+  # Separate observed and missing
+  long_nonmiss <- long_dat[long_dat$R == 1, , drop = FALSE]
+  long_miss    <- long_dat[long_dat$R == 0, , drop = FALSE]
+
+  # Support of observed S values by arm
+  S_z0 <- sort(unique(na.omit(long_dat$S[long_dat$Z == 0])))
+  S_z1 <- sort(unique(na.omit(long_dat$S[long_dat$Z == 1])))
+  m_z0 <- length(S_z0)
+  m_z1 <- length(S_z1)
+
+  # Initialize parameters (make prev_p numeric vectors)
+  prev_beta  <- rep(0, 4)   # intercept, Z, S, Z:S
+  prev_sigma <- 0.1
   if (nonparam) {
-    ## Empirical probabilities of S | Z = 0
-    prev_p_z0 = p0_z0 = matrix(data = 1 / m_z0, 
-                               nrow = m_z0, 
-                               ncol = 1)
-    
-    ## Empirical probabilities of S | Z = 1
-    prev_p_z1 = p0_z1 = matrix(data = 1 / m_z1, 
-                               nrow = m_z1, 
-                               ncol = 1)
+    prev_p_z0 <- if (m_z0 > 0) as.numeric(rep(1 / m_z0, m_z0)) else numeric(0)
+    prev_p_z1 <- if (m_z1 > 0) as.numeric(rep(1 / m_z1, m_z1)) else numeric(0)
   } else {
-    ## Linear regression of S ~ Z 
-    prev_gamma = gamma0 = rep(0, 2)
-    prev_eta = eta0 = 0.1
+    prev_gamma <- c(0, 0)
+    prev_eta   <- 0.1
   }
-  
-  # If converged values supplied, use them as initials 
+
+  # Use conv_res if provided
   if (!is.null(conv_res)) {
-    ## Linear regression of Y ~ Z + S + X x Z
-    prev_beta = beta0 = conv_res$betas
-    prev_sigma = sigma0 = conv_res$sigma
-    # Conditional distribution of S given Z
-    if (nonparam) {
-      ## Empirical probabilities of S | Z = 0
-      prev_p_z0 = p0_z0 = matrix(data = conv_res$p0, 
-                                 ncol = 1)
-      
-      ## Empirical probabilities of S | Z = 1
-      prev_p_z1 = p0_z1 = matrix(data = conv_res$p1, 
-                                 ncol = 1)
-    } 
-  } 
-  
-  # Create even longer version of *complete* data (without missingness)
-  cd_nonmiss = long_dat[1:(n0 + n1), ] ## patients with non-missing surrogate markers, both treatment groups
-  cd_nonmiss_z0 = cd_nonmiss[cd_nonmiss$Z == 0, ] ## separate control group patients
-  cd_nonmiss_z1 = cd_nonmiss[cd_nonmiss$Z == 1, ] ## separate control group patients
-  
-  ## Complete data for Z = 0
-  cd_miss_z0 = long_dat_z0[rep(x = (n0 + 1):N0, each = m_z0), ] ### create m0 copies of each patient with missing surrogate
-  cd_miss_z0$S = rep(x = S_z0, times = (N0 - n0)) ## try out different surrogate values
-  
-  ## Complete data for Z = 1
-  cd_miss_z1 = long_dat_z1[rep(x = (n1 + 1):N1, each = m_z1), ] ### create m1 copies of each patient with missing surrogate
-  cd_miss_z1$S = rep(x = S_z1, times = (N1 - n1)) ### try out different surrogate values
-  
-  ## Combined complete dataset
-  cd_miss = rbind(cd_miss_z0, cd_miss_z1) ### only those with missing surrogates
-  cd = rbind(cd_nonmiss, cd_miss) ### all patients 
-  
-  # EM Algorithm 
-  converged = FALSE ## initialize as unconverged
-  it = 1 ## initialize iteration counter 
-  while (!converged & it <= max_it) {
-    ## E step 
-    ### Update the phi_ki = P(S=sk|Zi) for patients w/ missing surrogate -------
-    ### Outcome model: P(Y|S,Z) ------------------------------------------------
-    #### mu = beta0 + beta1X + beta2Z + ...
-    mu_beta = prev_beta[1] + prev_beta[2] * cd_miss$Z + 
-      prev_beta[3] * cd_miss$S + prev_beta[4] * cd_miss$S * cd_miss$Z
-    #### Calculate P(Y|S,Z) from normal distribution ---------------------------
-    pYgivSZ = dnorm(x = cd_miss$Y,
-                    mean = mu_beta, 
-                    sd = prev_sigma)
-    ############################################################################
-    ### Conditional distribution of surrogate given treatment: P(S|Z) ----------
-    if (nonparam) {
-      #### Nonparametric
-      pSgivZ = c(prev_p_z0[rep(x = 1:m_z0, times = (N0 - n0))], #### take from p_k0 if Z = 0 
-                 prev_p_z1[rep(x = 1:m_z1, times = (N1 - n1))]) #### take from p_k1 if Z = 1  
-    } else {
-      #### mu = gamma0 + gammaZ
-      mu_gamma = prev_gamma[1] + prev_gamma[2] * cd_miss$Z 
-      #### Calculate P(Y|S,Z) from normal distribution
-      pSgivZ = dnorm(x = cd_miss$S,
-                     mean = mu_gamma, 
-                     sd = prev_eta)
-    }
-    ############################################################################
-    ## Estimate conditional expectations ---------------------------------------
-    ### Update numerator -------------------------------------------------------
-    #### P(Y|S,Z)P(S|Z) --------------------------------------------------------
-    phi_num = pYgivSZ * pSgivZ 
-    ### Update denominator -----------------------------------------------------
-    #### Sum over P(Y|S,Z)P(S|Z) per patient -----------------------------------
-    phi_denom = rowsum(x = phi_num, 
-                       group = cd_miss$ID, 
-                       reorder = FALSE)
-    #### Avoid NaN resulting from dividing by 0 --------------------------------
-    phi_denom[phi_denom == 0] = 1
-    ### Divide them to get phi = E{I(S=s)|Y,Z} ---------------------------------
-    phi = phi_num / 
-      c(rep(x = phi_denom[1:(N0 - n0)], each = m_z0), #### repeat denominator for Z = 0
-        rep(x = phi_denom[-c(1:(N0 - n0))], each = m_z1)) #### repeat denominator for Z = 1
-    #### Add indicators for non-missing rows -----------------------------------
-    phi_aug = c(rep(x = 1, times = (n0 + n1)), phi)
-    
-    ## M step 
-    ### Re-fit the linear regression model 
-    new_fit = lm(formula = Y ~ Z * S, 
-                 data = cd, 
-                 weights = phi_aug)
-    new_beta = as.numeric(new_fit$coefficients)
-    new_sigma = sigma(new_fit)
-    
-    ### Re-estimate distribution of S | Z 
-    if (nonparam) {
-      #### Re-estimate the empirical probabilities 
-      sum_phi_z0 = rowsum(x = phi_aug[cd$Z == 0], #### Sum over i = 1, ..., n of phi-hats... 
-                          group = cd$S[cd$Z == 0], #### for each k = 1, ..., m ...
-                          reorder = FALSE) #### and keep them in the original order
-      lambda_z0 = sum(sum_phi_z0) #### Sum over k = 1, ..., m for constraint
-      new_p_z0 = sum_phi_z0 / lambda_z0 #### updated probabilities
-      
-      sum_phi_z1 = rowsum(x = phi_aug[cd$Z == 1], #### Sum over i = 1, ..., n of phi-hats... 
-                          group = cd$S[cd$Z == 1], #### for each k = 1, ..., m ...
-                          reorder = FALSE) #### and keep them in the original order
-      lambda_z1 = sum(sum_phi_z1) #### Sum over k = 1, ..., m for constraint
-      new_p_z1 = sum_phi_z1 / lambda_z1 #### updated probabilities
-    } else {
-      #### Re-fit the regression model
-      new_fit = lm(formula = S ~ Z, 
-                   data = cd, 
-                   weights = phi_aug)
-      new_gamma = as.numeric(new_fit$coefficients)
-      new_eta = sigma(new_fit)
-    }
-    ## Check for convergence 
-    beta_conv = !any(abs(prev_beta - new_beta) > tol)
-    sigma_conv = !(abs(prev_sigma - new_sigma) > tol)
-    if (nonparam) {
-      p_conv = c(!any(abs(prev_p_z0 - new_p_z0) > tol), 
-                 !any(abs(prev_p_z1 - new_p_z1) > tol))
-      gamma_conv = TRUE
-      eta_conv = TRUE
-    } else {
-      p_conv = TRUE
-      gamma_conv = !any(abs(prev_gamma - new_gamma) > tol)
-      eta_conv = !any(abs(prev_eta - new_eta) > tol)
-    }
-    if (mean(c(beta_conv, sigma_conv, p_conv, gamma_conv, eta_conv)) == 1) {
-      converged = TRUE ### Success! 
-    }
-    
-    ## If not converged, prepare move on to next iteration
-    it = it + 1
-    prev_beta = new_beta 
-    prev_sigma = new_sigma
-    if (nonparam) {
-      prev_p_z0 = new_p_z0
-      prev_p_z1 = new_p_z1  
-    } else {
-      prev_gamma = new_gamma
-      prev_eta = new_eta
+    if (!is.null(conv_res$betas)) prev_beta  <- conv_res$betas
+    if (!is.null(conv_res$sigma)) prev_sigma <- conv_res$sigma
+    if (nonparam && !is.null(conv_res$p0) && !is.null(conv_res$p1)) {
+      prev_p_z0 <- as.numeric(conv_res$p0)
+      prev_p_z1 <- as.numeric(conv_res$p1)
+    } else if (!nonparam && !is.null(conv_res$gamma) && !is.null(conv_res$eta)) {
+      prev_gamma <- conv_res$gamma
+      prev_eta   <- conv_res$eta
     }
   }
-  
-  # Return percent of treatment effect explained 
-  if (converged) {
-    ## Define linear regression coefficients
-    beta0 = new_beta[1]
-    beta1 = new_beta[2]
-    beta2 = new_beta[3]
-    beta3 = new_beta[4]
-    
-    ## Define conditional mean coefficients
+
+  # helper for sigma
+  calc_sigma <- function(lmobj) {
+    if (is.null(lmobj)) return(NA_real_)
+    res <- lmobj$residuals
+    rdf <- lmobj$df.residual
+    if (is.null(rdf) || rdf <= 0) return(NA_real_)
+    sqrt(sum(res^2, na.rm = TRUE) / rdf)
+  }
+
+  converged <- FALSE
+  it <- 1L
+
+  while (!converged && it <= max_it) {
+    # ---------- E-step ----------
+    cd_nonmiss <- long_nonmiss
+    # expand each missing subject to all candidate S in that arm
+    expand_rows <- function(df, Svals) {
+      if (nrow(df) == 0 || length(Svals) == 0) return(df[FALSE, , drop = FALSE])
+      out_list <- lapply(seq_len(nrow(df)), function(i) {
+        rowi <- df[i, , drop = FALSE]
+        newrows <- rowi[rep(1, length(Svals)), , drop = FALSE]
+        newrows$S <- Svals
+        newrows
+      })
+      do.call(rbind, out_list)
+    }
+    cd_miss_z0 <- expand_rows(long_miss[long_miss$Z == 0, , drop = FALSE], S_z0)
+    cd_miss_z1 <- expand_rows(long_miss[long_miss$Z == 1, , drop = FALSE], S_z1)
+    cd_miss    <- if (nrow(cd_miss_z0) + nrow(cd_miss_z1) == 0) cd_miss_z0 else rbind(cd_miss_z0, cd_miss_z1)
+    cd         <- if (nrow(cd_miss) == 0) cd_nonmiss else rbind(cd_nonmiss, cd_miss)
+
+    # build phi_aug: 1's for observed rows then posterior probs for expanded rows
+    phi_aug <- rep(1, nrow(cd_nonmiss))
+    if (nrow(cd_miss) > 0) {
+      # P(Y | S, Z) on expanded rows
+      mu_beta_miss <- prev_beta[1] + prev_beta[2] * cd_miss$Z +
+                      prev_beta[3] * cd_miss$S + prev_beta[4] * cd_miss$S * cd_miss$Z
+      pY_miss <- dnorm(cd_miss$Y, mean = mu_beta_miss, sd = prev_sigma)
+
+      # P(S | Z) on expanded rows -> use numeric prev_p vectors robustly
+      if (nonparam) {
+        pS_miss <- numeric(nrow(cd_miss))
+        # fill block for Z==0 expanded rows
+        if (nrow(cd_miss_z0) > 0) {
+          n_miss_z0_subj <- nrow(long_miss[long_miss$Z == 0, , drop = FALSE])
+          # repeat prev_p_z0 for each missing subject in z0 (order matches expand_rows)
+          pS_miss[seq_len(nrow(cd_miss_z0))] <- rep(as.numeric(prev_p_z0), times = n_miss_z0_subj)
+        }
+        if (nrow(cd_miss_z1) > 0) {
+          start1 <- if (nrow(cd_miss_z0) > 0) nrow(cd_miss_z0) + 1 else 1
+          n_miss_z1_subj <- nrow(long_miss[long_miss$Z == 1, , drop = FALSE])
+          if (n_miss_z1_subj > 0) {
+            pS_miss[start1:(start1 + nrow(cd_miss_z1) - 1)] <- rep(as.numeric(prev_p_z1), times = n_miss_z1_subj)
+          }
+        }
+      } else {
+        mu_gamma_miss <- prev_gamma[1] + prev_gamma[2] * cd_miss$Z
+        pS_miss <- dnorm(cd_miss$S, mean = mu_gamma_miss, sd = prev_eta)
+      }
+
+      phi_num <- pY_miss * pS_miss
+      # group-sum phi_num by original subject ID
+      denom_byID <- rowsum(phi_num, group = cd_miss$ID, reorder = FALSE)
+      denom_rep <- as.numeric(denom_byID[as.character(cd_miss$ID)])
+      denom_rep[is.na(denom_rep)] <- 1
+      denom_rep[denom_rep == 0] <- 1
+      phi_expanded <- phi_num / denom_rep
+      phi_aug <- c(phi_aug, phi_expanded)
+    }
+
+    if (length(phi_aug) != nrow(cd)) stop("phi_aug length mismatch with cd rows")
+
+    # ---------- M-step ----------
+    new_fit <- tryCatch(lm(Y ~ Z * S, data = cd, weights = phi_aug), error = function(e) NULL)
+    if (is.null(new_fit)) {
+      if (full_output) {
+        return(list(delta = NA, delta.s = NA, R.s = NA, betas = rep(NA,4), sigma = NA, p0 = NA, p1 = NA, alphas = c(NA,NA)))
+      } else {
+        return(list(delta = NA, delta.s = NA, R.s = NA))
+      }
+    }
+    new_beta <- coef(new_fit)
+    # ensure length 4 and order by "(Intercept)","Z","S","Z:S"
+    all_names <- c("(Intercept)", "Z", "S", "Z:S")
+    tmp <- setNames(rep(0, 4), all_names)
+    tmp[names(new_beta)] <- new_beta
+    new_beta <- as.numeric(tmp)
+    new_sigma <- calc_sigma(new_fit)
+
+    # Update p_{kz} robustly: sum phi_aug over rows with Z=z and S == s_k
     if (nonparam) {
-      alpha0 = sum(S_z0 * new_p_z0) ### E(S|Z=0)
-      ### Complete case mean: mean(long_dat$S[long_dat$Z == 0], na.rm = TRUE) 
-      alpha1 = sum(S_z1 * new_p_z1) ### E(S|Z=1)
-      ### Complete case mean: mean(long_dat$S[long_dat$Z == 1], na.rm = TRUE)   
+      # Z == 0
+      idx_z0 <- which(cd$Z == 0)
+      if (length(S_z0) == 0) {
+        new_p_z0 <- numeric(0)
+      } else {
+        sums_z0 <- sapply(S_z0, function(sk) {
+          sum(phi_aug[idx_z0][cd$S[idx_z0] == sk], na.rm = TRUE)
+        })
+        if (sum(sums_z0) == 0) sums_z0 <- rep(1/length(sums_z0), length(sums_z0))
+        new_p_z0 <- as.numeric(sums_z0 / sum(sums_z0))
+      }
+
+      # Z == 1
+      idx_z1 <- which(cd$Z == 1)
+      if (length(S_z1) == 0) {
+        new_p_z1 <- numeric(0)
+      } else {
+        sums_z1 <- sapply(S_z1, function(sk) {
+          sum(phi_aug[idx_z1][cd$S[idx_z1] == sk], na.rm = TRUE)
+        })
+        if (sum(sums_z1) == 0) sums_z1 <- rep(1/length(sums_z1), length(sums_z1))
+        new_p_z1 <- as.numeric(sums_z1 / sum(sums_z1))
+      }
     } else {
-      alpha0 = new_gamma[1] ### E(S|Z=0)
-      alpha1 = alpha0 + new_gamma[2] ### E(S|Z=1)
+      sfit <- tryCatch(lm(S ~ Z, data = cd, weights = phi_aug), error = function(e) NULL)
+      if (is.null(sfit)) {
+        new_gamma <- prev_gamma; new_eta <- prev_eta
+      } else {
+        new_gamma <- coef(sfit); if (length(new_gamma) < 2) new_gamma <- c(new_gamma, 0)[1:2]
+        new_eta <- calc_sigma(sfit)
+      }
     }
-    
-    ## Construct percent treatment effect explained
-    delta = beta1 + (beta2 + beta3) * alpha1 - beta2 * alpha0
-    delta_S = beta1 + beta3 * alpha0
-    R_S = 1 - delta_S / delta
-    
-    ## Return 
+
+    # ---------- convergence ----------
+    beta_conv  <- all(!is.na(prev_beta)) && all(!is.na(new_beta)) && all(abs(prev_beta - new_beta) < tol)
+    sigma_conv <- !is.na(prev_sigma) && !is.na(new_sigma) && (abs(prev_sigma - new_sigma) < tol)
+    if (nonparam) {
+      # check shape and non-NA
+      ok0 <- length(prev_p_z0) == length(new_p_z0) && length(new_p_z0) > 0
+      ok1 <- length(prev_p_z1) == length(new_p_z1) && length(new_p_z1) > 0
+      if (ok0 && ok1) {
+        p_conv <- all(abs(prev_p_z0 - new_p_z0) < tol) && all(abs(prev_p_z1 - new_p_z1) < tol)
+      } else {
+        # if no missing subjects, treat p_conv as TRUE (nothing to update)
+        if (nrow(long_miss) == 0) p_conv <- TRUE else p_conv <- FALSE
+      }
+      gamma_conv <- TRUE; eta_conv <- TRUE
+    } else {
+      p_conv <- TRUE
+      gamma_conv <- all(!is.na(prev_gamma)) && all(!is.na(new_gamma)) && all(abs(prev_gamma - new_gamma) < tol)
+      eta_conv   <- !is.na(prev_eta) && !is.na(new_eta) && (abs(prev_eta - new_eta) < tol)
+    }
+
+    converged <- isTRUE(all(c(beta_conv, sigma_conv, p_conv, gamma_conv, eta_conv)))
+
+    # update prev for next iter
+    prev_beta  <- new_beta; prev_sigma <- new_sigma
+    if (nonparam) { prev_p_z0 <- new_p_z0; prev_p_z1 <- new_p_z1 } else { prev_gamma <- new_gamma; prev_eta <- new_eta }
+    it <- it + 1L
+  } # end EM loop
+
+  if (!converged) {
     if (full_output) {
-      list(delta = delta, 
-           delta.s = delta_S, 
-           R.s = R_S, 
-           betas = new_beta, 
-           sigma = new_sigma, 
-           p0 = new_p_z0, 
-           p1 = new_p_z1,
-           alphas = c(alpha0, alpha1))
+      return(list(delta = NA, delta.s = NA, R.s = NA, betas = rep(NA,4), sigma = NA, p0 = NA, p1 = NA, alphas = c(NA,NA)))
     } else {
-      list(delta = delta, 
-           delta.s = delta_S, 
-           R.s = R_S)
+      return(list(delta = NA, delta.s = NA, R.s = NA))
     }
-    
+  }
+
+  # compute alpha0, alpha1 and estimands
+  beta0 <- prev_beta[1]; beta1 <- prev_beta[2]; beta2 <- prev_beta[3]; beta3 <- prev_beta[4]
+  if (nonparam) {
+    alpha0 <- if (length(S_z0) > 0 && length(prev_p_z0) > 0) sum(S_z0 * as.numeric(prev_p_z0)) else NA_real_
+    alpha1 <- if (length(S_z1) > 0 && length(prev_p_z1) > 0) sum(S_z1 * as.numeric(prev_p_z1)) else NA_real_
   } else {
-    ## Return 
-    if (full_output) {
-      list(delta = NA, 
-           delta.s = NA, 
-           R.s = NA, 
-           betas = rep(NA, length(new_beta)), 
-           sigma = NA, 
-           p0 = NA, 
-           p1 = NA,
-           alphas = rep(NA, 2))
-    } else {
-      list(delta = NA, 
-           delta.s = NA, 
-           R.s = NA)
-    }
+    alpha0 <- prev_gamma[1]; alpha1 <- alpha0 + prev_gamma[2]
+  }
+
+  delta   <- beta1 + (beta2 + beta3) * alpha1 - beta2 * alpha0
+  delta.s <- beta1 + beta3 * alpha0
+  R_S     <- 1 - delta.s / delta
+
+
+  if (full_output) {
+    return(list(delta = delta, delta.s = delta.s, R.s = R_S,
+                betas = prev_beta, sigma = prev_sigma, p0 = prev_p_z0, p1 = prev_p_z1, alphas = c(alpha0, alpha1)))
+  } else {
+    return(list(delta = delta, delta.s = delta.s, R.s = R_S))
   }
 }
 
