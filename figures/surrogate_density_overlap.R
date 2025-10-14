@@ -49,7 +49,8 @@ data_overlap |>
   geom_histogram(aes(x = s1, fill = "Treatment"), 
                  alpha = 0.5) + 
   facet_wrap(~Overlap) + 
-  labs(x = "Surrogate Marker") + 
+  labs(x = "Surrogate Marker", 
+       y = "Number of Patients") + 
   scale_fill_manual(
     values = c("Control" = cols[2], "Treatment" = cols[1]), # Specify colors for each level
     labels = c("Control" = "Control Group", "Treatment" = "Treatment Group"), # Specify custom labels
