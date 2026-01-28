@@ -1,8 +1,5 @@
 # Libraries and functions
-library(Rsurrogate)
-
-# Source IPW/SMLE function from GitHub
-devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/R.s.miss.R")
+library(missSurrogate)
 
 # Reproducibility 
 ## Random seed to be used for each simulation setting
@@ -21,12 +18,12 @@ gen.data = function(setting, n1, n0) {
   return(data.frame("s1" = s1, "y1" = y1, "s0" = s0, "y0" = y0))
 }
 f.cond.1 = function(s.vector) {
-  eps1 = rnorm(length(s.vector),0,3)
+  eps1 = rnorm(length(s.vector),0,1) ## NOTE: Changed from 3 --> 1 on 01/09/2026
   y1 = 2+5*s.vector+1 + 1*s.vector + eps1
   return(y1)		
 }
 f.cond.0 = function(s.vector) {
-  eps0 = rnorm(length(s.vector),0,3)
+  eps0 = rnorm(length(s.vector),0,1) ## NOTE: Changed from 3 --> 1 on 01/09/2026
   y0 = 2+5*s.vector+ eps0
   return(y0)		
 }
