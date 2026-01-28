@@ -4,7 +4,7 @@ sim_res = do.call(dplyr::bind_rows,
                   lapply(X = paste0(p, list.files(p)), 
                          FUN = read.csv))
 ## SMLE 
-p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett1_mcar_smle/sett1_mcar_seed", 20:39, ".csv")
+p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sarahs_coding/sett1_mcar_smle/sett1_mcar_seed", 20:39, ".csv")
 sim_res = sim_res |> 
   dplyr::bind_cols(
     do.call(dplyr::bind_rows, 
@@ -15,5 +15,5 @@ sim_res = sim_res |>
 
 ## Save combined data 
 sim_res |> 
-  write.csv("simulations/sett1_mcar.csv", 
+  write.csv("simulations/sarahs_coding/sett1_mcar.csv", 
             row.names = FALSE)
