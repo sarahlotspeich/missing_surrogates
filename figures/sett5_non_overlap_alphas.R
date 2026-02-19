@@ -37,9 +37,23 @@ res_long = sim_res |>
                 method = "SMLE")
 
 # Make a boxplot 
+cols = c("#787ff6", "#ffbd59", "#8bdddb", "#ff99ff",  "#7dd5f6") ## color palette
 res_long |> 
-  boxplot_of_estimates() + 
-  facet_grid(cols = vars(overlap), rows = vars(quantity), 
-             labeller = label_parsed, scales = "free")
-ggsave(filename = "figures/sett2_mar_givY_boxplot.pdf", 
+  dplyr::filter(quantity == "alpha[0]" | quantity == "alpha[1]") |> 
+  ggplot(aes(x = method, y = est, fill = overlap)) + 
+  geom_hline(aes(yintercept = truth), linetype = 2, color = "black") + 
+  geom_boxplot() + 
+  xlab("Method") + 
+  ylab("Estimate") + 
+  facet_grid(cols =  vars(quantity), 
+             scales = "free", 
+             labeller = labeller(quantity = label_parsed)) + 
+  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 5)) + 
+  scale_fill_manual(name = "Method:", values = cols) + 
+  theme_minimal() + 
+  theme(legend.position = "top", 
+        strip.background = element_rect(fill = "black"), 
+        strip.text = element_text(color = "white"))  
+
+ggsave(filename = "figures/sett5_overlap_non_overlap_boxplot.pdf", 
        device = "pdf", width = 7, height = 5)
