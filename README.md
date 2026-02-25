@@ -12,7 +12,7 @@ devtools::install_github("sarahlotspeich/missSurrogate", ref = "main")
 
 ## Tables of Simulation Results
 
-**Table 1.** Simulation results for $\widehat{R}_S$, the proportion of treatment effect explained (PTE) in Setting 1, where the surrogate marker $S$ was missing completely at random for $32-39\%$ of patients in the sample of $n = 2000$. With $R_S = 0.5$, the surrogate $S$ was of moderate strength.
+**Table 1.** Simulation results for $\widehat{R}_S$, the proportion of treatment effect explained (PTE) in Setting 1, where the surrogate marker $S$ was missing completely at random for $32-39$% of patients in the sample of $n = 2000$. With $R_S = 0.5$, the surrogate $S$ was of moderate strength.
 
   - [Script (Run Simulations)](simulations/sett1_mcar.R)
   - [Script (Make Table)](tables/sett1_mcar.R)
