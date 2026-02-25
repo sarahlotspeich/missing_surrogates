@@ -60,17 +60,6 @@ for (r in 1:REPS) {
   ##########################################################
   #Estimates with incomplete data ##########################
   ##########################################################  
-  ## Estimate R with parametric approach (SMLE)
-  Rparam_miss_smle = R.s.miss(sone = s1, 
-                              szero = s0,
-                              yone = y1,
-                              yzero = y0, 
-                              type = "model", 
-                              conf.int = TRUE, 
-                              orig.smle = TRUE) 
-  sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s")] = with(Rparam_miss_smle, c(delta, delta.s, R.s))
-  sim_res[r, c("smle_param_var_R.s", "smle_param_normci_lb_R.s", "smle_param_normci_ub_R.s", 
-               "smle_param_quantci_lb_R.s", "smle_param_quantci_ub_R.s")] = with(Rparam_miss_smle, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   ## Save 
   sim_res |> 
