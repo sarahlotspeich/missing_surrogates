@@ -1,4 +1,7 @@
-# Be reproducible queens
+# Load packages 
+library(ggplot2)
+
+# Reproducibility
 set.seed(1) 
 
 # Functions to generate data (surrogates non-overlapping)
@@ -30,10 +33,8 @@ g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1,1/2))}
 ## Simulate data (10,000 patients per group for demonstration)
 data_nonoverlap = gen.data(n1=1000, n0=1000) 
 
-# Load packages
-cols = c("#787ff6", "#ffbd59", "#8bdddb", "#ff99ff",  "#7dd5f6") ## color palette
-
 # Plot histograms of surrogates in control/treatment groups 
+cols = c("#787ff6", "#ffbd59", "#8bdddb", "#ff99ff",  "#7dd5f6") ## color palette
 data_overlap |> 
   mutate(Overlap = "Surrogate Distributions Overlap") |> 
   bind_rows(
@@ -61,5 +62,5 @@ data_overlap |>
         strip.background = element_rect(fill = "black"), 
         strip.text = element_text(color = "white"))
 
-ggsave(filename = "figures/surrogate_density_overlap.pdf", 
+ggsave(filename = "surrogate_density_overlap.pdf", 
        device = "pdf", width = 7, height = 5)
