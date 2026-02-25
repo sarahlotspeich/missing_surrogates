@@ -1,41 +1,30 @@
 # Libraries and functions
+## Package with PTE estimation / missing data corrections
 library(missSurrogate)
+## Source data generation function (surrogate distributions overlap)
+devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/evaluate_missing_surrogates/refs/heads/main/gen.data.overlap.R")
 
 # Reproducibility 
-## Random seed to be used for each simulation setting
-args = commandArgs(TRUE)
-## When running on the cluster, give each array a unique seed by using the array ID
-sim_seed = as.integer(args)
-## Be reproducible queens
-set.seed(sim_seed) 
+set.seed(11422) 
 
-# Functions to generate data 
-gen.data = function(setting, n1, n0) {
-  s1 = g.1(n1)
-  y1 = f.cond.1(s1)
-  s0 = g.0(n0)
-  y0 = f.cond.0(s0)
-  return(data.frame("s1" = s1, "y1" = y1, "s0" = s0, "y0" = y0))
-}
-f.cond.1 = function(s.vector) {
-  eps1 = rnorm(length(s.vector),0,3)
-  y1 = 2+5*s.vector+1 + 1*s.vector + eps1
-  return(y1)		
-}
-f.cond.0 = function(s.vector) {
-  eps0 = rnorm(length(s.vector),0,3)
-  y0 = 2+5*s.vector+ eps0
-  return(y0)		
-}
-g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1,2))}
-g.0 = function(n,alpha0=5) { return(rnorm(n, alpha0,1))}
-
-# Run simulations 
-## Set number of replications per array
-REPS = 50
-## Set sample sizes 
+# Set sample sizes 
 n1 = 1000
 n0 = 1000
+
+# Run simulations
+REPS = 1000 ### but we ran 50 each across 20 arrays on a cluster for efficiency
+## Initialize empty dataframe for results
+sim_res = data.frame(
+  r = 1:REPS, 
+  gs_nonparam_delta = NA, gs_nonparam_delta.s = NA, gs_nonparam_R.s = NA, gs_nonparam_var_R.s = NA, gs_nonparam_normci_lb_R.s = NA, gs_nonparam_normci_ub_R.s = NA, gs_nonparam_quantci_lb_R.s = NA, gs_nonparam_quantci_ub_R.s = NA,
+  gs_param_delta = NA, gs_param_delta.s = NA, gs_param_R.s = NA, gs_param_var_R.s = NA, gs_param_normci_lb_R.s = NA, gs_param_normci_ub_R.s = NA, gs_param_quantci_lb_R.s = NA, gs_param_quantci_ub_R.s = NA,
+  cc_nonparam_delta = NA, cc_nonparam_delta.s = NA, cc_nonparam_R.s = NA, cc_nonparam_var_R.s = NA, cc_nonparam_normci_lb_R.s = NA, cc_nonparam_normci_ub_R.s = NA, cc_nonparam_quantci_lb_R.s = NA, cc_nonparam_quantci_ub_R.s = NA,
+  cc_param_delta = NA, cc_param_delta.s = NA, cc_param_R.s = NA, cc_param_var_R.s = NA, cc_param_normci_lb_R.s = NA, cc_param_normci_ub_R.s = NA, cc_param_quantci_lb_R.s = NA, cc_param_quantci_ub_R.s = NA,
+  ipw_nonparam_delta = NA, ipw_nonparam_delta.s = NA, ipw_nonparam_R.s = NA, ipw_nonparam_var_R.s = NA, ipw_nonparam_normci_lb_R.s = NA, ipw_nonparam_normci_ub_R.s = NA, ipw_nonparam_quantci_lb_R.s = NA, ipw_nonparam_quantci_ub_R.s = NA,
+  ipw_param_delta = NA, ipw_param_delta.s = NA, ipw_param_R.s = NA, ipw_param_var_R.s = NA, ipw_param_normci_lb_R.s = NA, ipw_param_normci_ub_R.s = NA, ipw_param_quantci_lb_R.s = NA, ipw_param_quantci_ub_R.s = NA, 
+  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_var_R.s = NA, smle_param_normci_lb_R.s = NA, smle_param_normci_ub_R.s = NA, smle_param_quantci_lb_R.s = NA, smle_param_quantci_ub_R.s = NA) 
+
+
 ## Initialize empty dataframe for results
 sim_res = data.frame(
   r = 1:REPS, 
@@ -43,7 +32,10 @@ sim_res = data.frame(
   cc_nonparam = NA, cc_param = NA, 
   ipw_nonparam_Yonly = NA, ipw_param_Yonly = NA, 
   ipw_nonparam_Zonly = NA, ipw_param_Zonly = NA, 
-  ipw_nonparam_YZ = NA, ipw_param_YZ = NA) 
+  ipw_nonparam_YZ = NA, ipw_param_YZ = NA, 
+  smle_param = NA) 
+
+## Loop over replications
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -198,8 +190,17 @@ for (r in 1:REPS) {
                              conf.int = FALSE)
   sim_res[r, "ipw_param_YZ"] = Rparam_miss_ipw$R.s
   
+  ## Estimate R with parametric approach (SMLE)
+  Rparam_miss_smle = R.s.miss(sone = s1, 
+                              szero = s0,
+                              yone = y1,
+                              yzero = y0, 
+                              type = "model", 
+                              conf.int = FALSE) 
+  sim_res[r, "smle_param"] = Rparam_miss_smle$R.s
+  
   ## Save 
   sim_res |> 
-    write.csv(paste0("sett4_misspec_ipw/sett4_misspec_ipw_seed", sim_seed, ".csv"), 
+    write.csv(paste0("sett4_misspec_ipw_seed", sim_seed, ".csv"), 
               row.names = FALSE)
 }
