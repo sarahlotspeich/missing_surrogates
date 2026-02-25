@@ -38,7 +38,8 @@ sim_res = data.frame(
 ## Loop over replications
 for (r in 1:REPS) {
   # Generate data 
-  data = gen.data(n1=n1, n0=n0) 
+  data = gen.data.overlap(n1 = n1, 
+                          n0 = n0) 
   
   # Define vectors for outcomes/surrogates in untreated/treated 
   s1 = data$s1
