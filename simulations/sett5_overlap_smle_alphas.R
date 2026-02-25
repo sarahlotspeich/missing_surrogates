@@ -1,5 +1,5 @@
 # Libraries and functions
-library(missSurrogate)
+source("R.s.miss_model_smle.R")
 
 # Reproducibility 
 ## Random seed to be used for each simulation setting
@@ -27,8 +27,8 @@ f.cond.0 = function(s.vector) {
   y0 = 2+5*s.vector+ eps0
   return(y0)		
 }
-g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1,2))}
-g.0 = function(n,alpha0=5) { return(rnorm(n, alpha0,1))}
+g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1, 2))}
+g.0 = function(n, alpha0=5) { return(rnorm(n, alpha0, 1))}
 
 # Run simulations 
 ## Set number of replications per array
@@ -39,7 +39,9 @@ n0 = 1000
 ## Initialize empty dataframe for results
 sim_res = data.frame(
   r = 1:REPS, 
-  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_var_R.s = NA, smle_param_normci_lb_R.s = NA, smle_param_normci_ub_R.s = NA, smle_param_quantci_lb_R.s = NA, smle_param_quantci_ub_R.s = NA) 
+  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_alpha0 = NA, smle_param_alpha1 = NA, 
+  smle_param_beta0 = NA, smle_param_beta1 = NA, smle_param_beta2 = NA, smle_param_beta3 = NA) 
+
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -60,20 +62,25 @@ for (r in 1:REPS) {
   ##########################################################
   #Estimates with incomplete data ##########################
   ##########################################################  
-  ## Estimate R with parametric approach (SMLE)
-  Rparam_miss_smle = R.s.miss(sone = s1, 
-                              szero = s0,
-                              yone = y1,
-                              yzero = y0, 
-                              type = "model", 
-                              conf.int = TRUE, 
-                              orig.smle = TRUE) 
-  sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s")] = with(Rparam_miss_smle, c(delta, delta.s, R.s))
-  sim_res[r, c("smle_param_var_R.s", "smle_param_normci_lb_R.s", "smle_param_normci_ub_R.s", 
-               "smle_param_quantci_lb_R.s", "smle_param_quantci_ub_R.s")] = with(Rparam_miss_smle, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
+  ## Estimate R with parametric app
+  Rparam_miss_smle = R.s.miss_model_smle_original(sone = s1, 
+                                                  szero = s0, 
+                                                  yone = y1, 
+                                                  yzero = y0, 
+                                                  conv.res = NULL, 
+                                                  max.it = 1E4, 
+                                                  tol = 1E-3, 
+                                                  full.output = TRUE)  
+  # Rparam_miss_smle = R.s.miss(sone = s1, 
+  #                             szero = s0,
+  #                             yone = y1,
+  #                             yzero = y0, 
+  #                             type = "model", 
+  #                             conf.int = TRUE) 
+  sim_res[r, -1] = with(Rparam_miss_smle, c(delta, delta.s, R.s, alphas, betas))
   
   ## Save 
   sim_res |> 
-    write.csv(paste0("sett2_mar_givY_smle/sett2_mar_givY_seed", sim_seed, ".csv"), 
+    write.csv(paste0("sett5_non_overlap_smle/alphas_sett5_overlap_seed", sim_seed, ".csv"), 
               row.names = FALSE)
 }

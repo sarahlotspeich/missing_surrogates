@@ -1,15 +1,13 @@
 # Libraries and functions
-#library(missSurrogate)
-#source("~/Documents/missSurrogate/R/R.s.miss_model_smle.R")
-source("~/Downloads/deac_R.s.miss.R")
+source("R.s.miss_model_smle.R")
 
 # Reproducibility 
 ## Random seed to be used for each simulation setting
-args = 0# commandArgs(TRUE)
+args = commandArgs(TRUE)
 ## When running on the cluster, give each array a unique seed by using the array ID
 sim_seed = as.integer(args) + 20
 ## Be reproducible queens
-set.seed(20) 
+set.seed(sim_seed) 
 
 # Functions to generate data 
 gen.data = function(setting, n1, n0) {
@@ -17,19 +15,19 @@ gen.data = function(setting, n1, n0) {
   y1 = f.cond.1(s1)
   s0 = g.0(n0)
   y0 = f.cond.0(s0)
-  return(list("s1" = s1, "y1" = y1, "s0" = s0, "y0" = y0))
+  return(data.frame("s1" = s1, "y1" = y1, "s0" = s0, "y0" = y0))
 }
 f.cond.1 = function(s.vector) {
-  eps1 = rnorm(length(s.vector),0,1)
-  y1 = 2 + 5*s.vector + 1 + 1*s.vector + eps1
+  eps1 = rnorm(length(s.vector),0,3)
+  y1 = 2+5*s.vector+1 + 1*s.vector + eps1
   return(y1)		
 }
 f.cond.0 = function(s.vector) {
-  eps0 = rnorm(length(s.vector),0,1)
+  eps0 = rnorm(length(s.vector),0,3)
   y0 = 2+5*s.vector+ eps0
   return(y0)		
 }
-g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1, 2))} #1/2))}
+g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1, 1/2))}
 g.0 = function(n, alpha0=5) { return(rnorm(n, alpha0, 1))}
 
 # Run simulations 
@@ -41,7 +39,9 @@ n0 = 1000
 ## Initialize empty dataframe for results
 sim_res = data.frame(
   r = 1:REPS, 
-  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_alpha0 = NA, smle_param_alpha1 = NA) 
+  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_alpha0 = NA, smle_param_alpha1 = NA, 
+  smle_param_beta0 = NA, smle_param_beta1 = NA, smle_param_beta2 = NA, smle_param_beta3 = NA) 
+
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -51,10 +51,6 @@ for (r in 1:REPS) {
   y1 = data$y1
   s0 = data$s0
   y0 = data$y0
-  
-  # Create long version of data 
-  summary(lm(formula = y1 ~ s1))
-  summary(lm(formula = y0 ~ s0))
   
   # Simulate non-missingness indicators ###################
   ## Under MAR, probability of missingness depends on Y continuously (logistic regression)
@@ -67,47 +63,21 @@ for (r in 1:REPS) {
   #Estimates with incomplete data ##########################
   ##########################################################  
   ## Estimate R with parametric approach (SMLE)
-  nonparam_smle = R.s.miss_model_smle(sone = s1, 
-                                      szero = s0,
-                                      yone = y1,
-                                      yzero = y0, 
-                                      nonparam = TRUE,
-                                      conv_res = NULL,
-                                      full_output = TRUE)
-  
-  nonparam_smle = R.s.miss_model_smle(sone = s1, 
-                                      szero = s0,
-                                      yone = y1,
-                                      yzero = y0, 
-                                      nonparam = TRUE,
-                                      conv_res = NULL,
-                                      full_output = TRUE)
-  with(Rparam_miss_smle, c(delta, delta.s, R.s, alphas, betas))
-  
-  param_smle = R.s.miss_model_smle(sone = s1, 
-                                   szero = s0,
-                                   yone = y1,
-                                   yzero = y0, 
-                                   nonparam = FALSE,
-                                   conv_res = NULL,
-                                   full_output = TRUE)
-  with(Rparam_miss_smle, c(delta, delta.s, R.s, alphas, betas))
-  
-  pckg_Rparam_miss_smle = missSurrogate::R.s.miss(sone = s1, 
-                                                  szero = s0,
-                                                  yone = y1,
+  Rparam_miss_smle = R.s.miss_model_smle_original(sone = s1, 
+                                                  szero = s0, 
+                                                  yone = y1, 
                                                   yzero = y0, 
-                                                  type = "model",
-                                                  conf.int = FALSE)
-  with(pckg_Rparam_miss_smle, c(delta, delta.s, R.s))
-  
+                                                  conv.res = NULL, 
+                                                  max.it = 1E4, 
+                                                  tol = 1E-3, 
+                                                  full.output = TRUE)  
   # Rparam_miss_smle = R.s.miss(sone = s1, 
   #                             szero = s0,
   #                             yone = y1,
   #                             yzero = y0, 
   #                             type = "model", 
   #                             conf.int = TRUE) 
-  sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s", "smle_param_alpha0", "smle_param_alpha1")] = with(Rparam_miss_smle, c(delta, delta.s, R.s, alphas))
+  sim_res[r, -1] = with(Rparam_miss_smle, c(delta, delta.s, R.s, alphas, betas))
   
   ## Save 
   sim_res |> 

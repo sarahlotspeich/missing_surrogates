@@ -50,10 +50,11 @@ for (r in 1:REPS) {
   s0 = data$s0
   y0 = data$y0
   
+  #########################################################
   # Simulate non-missingness indicators ###################
-  ## Under MAR, probability of missingness depends on Y continuously (logistic regression)
-  m1 = rbinom(n = n1, size = 1, prob = 1 / (1 + exp(- 0.015 * y1)))
-  m0 = rbinom(n = n0, size = 1, prob = 1 / (1 + exp(- 0.015 * y0)))
+  ## Under MCAR, everybody has 35% missingness probability
+  m1 = rbinom(n1, 1, 0.65) 
+  m0 = rbinom(n0, 1, 0.65)
   s0[m0==0] = NA ### make them missing
   s1[m1==0] = NA ### make them missing
   
@@ -74,6 +75,6 @@ for (r in 1:REPS) {
   
   ## Save 
   sim_res |> 
-    write.csv(paste0("sett2_mar_givY_smle/sett2_mar_givY_seed", sim_seed, ".csv"), 
+    write.csv(paste0("sett1_mcar_smle/sett1_mcar_seed", sim_seed, ".csv"), 
               row.names = FALSE)
 }

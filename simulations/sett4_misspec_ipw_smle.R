@@ -39,7 +39,7 @@ n0 = 1000
 ## Initialize empty dataframe for results
 sim_res = data.frame(
   r = 1:REPS, 
-  smle_param_delta = NA, smle_param_delta.s = NA, smle_param_R.s = NA, smle_param_var_R.s = NA, smle_param_normci_lb_R.s = NA, smle_param_normci_ub_R.s = NA, smle_param_quantci_lb_R.s = NA, smle_param_quantci_ub_R.s = NA) 
+  smle_param = NA) 
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -52,7 +52,7 @@ for (r in 1:REPS) {
   
   # Simulate non-missingness indicators ###################
   ## Under MAR, probability of missingness depends on Y continuously (logistic regression)
-  m1 = rbinom(n = n1, size = 1, prob = 1 / (1 + exp(- 0.015 * y1)))
+  m1 = rbinom(n = n1, size = 1, prob = 1 / (1 + exp(- 0.030 * y1)))
   m0 = rbinom(n = n0, size = 1, prob = 1 / (1 + exp(- 0.015 * y0)))
   s0[m0==0] = NA ### make them missing
   s1[m1==0] = NA ### make them missing
@@ -66,14 +66,12 @@ for (r in 1:REPS) {
                               yone = y1,
                               yzero = y0, 
                               type = "model", 
-                              conf.int = TRUE, 
+                              conf.int = FALSE, 
                               orig.smle = TRUE) 
-  sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s")] = with(Rparam_miss_smle, c(delta, delta.s, R.s))
-  sim_res[r, c("smle_param_var_R.s", "smle_param_normci_lb_R.s", "smle_param_normci_ub_R.s", 
-               "smle_param_quantci_lb_R.s", "smle_param_quantci_ub_R.s")] = with(Rparam_miss_smle, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
+  sim_res[r, "smle_param"] = Rparam_miss_smle$R.s
   
   ## Save 
   sim_res |> 
-    write.csv(paste0("sett2_mar_givY_smle/sett2_mar_givY_seed", sim_seed, ".csv"), 
+    write.csv(paste0("sett4_misspec_ipw_smle/sett4_misspec_ipw_seed", sim_seed, ".csv"), 
               row.names = FALSE)
 }

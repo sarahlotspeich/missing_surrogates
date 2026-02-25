@@ -1,8 +1,5 @@
 # Libraries and functions
-library(Rsurrogate)
-
-# Source IPW/SMLE function from GitHub
-devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/R.s.miss.R")
+library(missSurrogate)
 
 # Reproducibility 
 ## Random seed to be used for each simulation setting
@@ -61,21 +58,21 @@ for (r in 1:REPS) {
   #Estimates with complete data ############################
   ##########################################################
   ## Estimate R with nonparametric approach (gold standard)
-  Rnonparam = R.s.estimate(sone=s1, 
-                           szero=s0, 
-                           yone = y1, 
-                           yzero = y0, 
-                           type = "robust", 
-                           conf.int = FALSE)
+  Rnonparam = R.s.miss(sone=s1, 
+                       szero=s0, 
+                       yone = y1, 
+                       yzero = y0, 
+                       type = "robust", 
+                       conf.int = FALSE)
   sim_res[r, "gs_nonparam"] = Rnonparam$R.s
   
   ## Estimate R with parametric approach (gold standard) ###
-  Rparam = R.s.estimate(sone=s1, 
-                        szero=s0, 
-                        yone = y1, 
-                        yzero = y0, 
-                        type = "model", 
-                        conf.int = FALSE)
+  Rparam = R.s.miss(sone=s1, 
+                    szero=s0, 
+                    yone = y1, 
+                    yzero = y0, 
+                    type = "model", 
+                    conf.int = FALSE)
   sim_res[r, "gs_param"] = Rparam$R.s
   
   # Simulate non-missingness indicators ###################
@@ -89,21 +86,21 @@ for (r in 1:REPS) {
   #Estimates with incomplete data ##########################
   ##########################################################
   ## Estimate R with nonparametric approach (complete case)
-  Rnonparam_miss = R.s.estimate(sone = s1[m1==1], 
-                                szero = s0[m0==1], 
-                                yone = y1[m1==1], 
-                                yzero = y0[m0==1], 
-                                type = "robust", 
-                                conf.int = FALSE)
+  Rnonparam_miss = R.s.miss(sone = s1[m1==1], 
+                            szero = s0[m0==1], 
+                            yone = y1[m1==1], 
+                            yzero = y0[m0==1], 
+                            type = "robust", 
+                            conf.int = FALSE)
   sim_res[r, "cc_nonparam"] = Rnonparam_miss$R.s
   
   ## Estimate R with parametric approach (complete case)
-  Rparam_miss = R.s.estimate(sone = s1[m1==1], 
-                             szero = s0[m0==1], 
-                             yone = y1[m1==1], 
-                             yzero = y0[m0==1], 
-                             type = "model", 
-                             conf.int = FALSE)
+  Rparam_miss = R.s.miss(sone = s1[m1==1], 
+                         szero = s0[m0==1], 
+                         yone = y1[m1==1], 
+                         yzero = y0[m0==1], 
+                         type = "model", 
+                         conf.int = FALSE)
   sim_res[r, "cc_param"] = Rparam_miss$R.s
   
   ## Calculate weights for IPW approaches

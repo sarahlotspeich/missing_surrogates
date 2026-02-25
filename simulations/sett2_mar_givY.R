@@ -1,8 +1,5 @@
 # Libraries and functions
-library(Rsurrogate)
-
-# Source IPW/SMLE function from GitHub
-devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/R.s.miss.R")
+library(missSurrogate)
 
 # Reproducibility 
 ## Random seed to be used for each simulation setting
@@ -62,23 +59,23 @@ for (r in 1:REPS) {
   #Estimates with complete data ############################
   ##########################################################
   ## Estimate R with nonparametric approach (gold standard)
-  Rnonparam = R.s.estimate(sone=s1, 
-                           szero=s0, 
-                           yone = y1, 
-                           yzero = y0, 
-                           type = "robust", 
-                           conf.int = TRUE)
+  Rnonparam = R.s.miss(sone=s1, 
+                       szero=s0, 
+                       yone = y1, 
+                       yzero = y0, 
+                       type = "robust", 
+                       conf.int = TRUE)
   sim_res[r, c("gs_nonparam_delta", "gs_nonparam_delta.s", "gs_nonparam_R.s")] = with(Rnonparam, c(delta, delta.s, R.s))
   sim_res[r, c("gs_nonparam_var_R.s", "gs_nonparam_normci_lb_R.s", "gs_nonparam_normci_ub_R.s", 
                "gs_nonparam_quantci_lb_R.s", "gs_nonparam_quantci_ub_R.s")] = with(Rnonparam, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   ## Estimate R with parametric approach (gold standard) ###
-  Rparam = R.s.estimate(sone=s1, 
-                        szero=s0, 
-                        yone = y1, 
-                        yzero = y0, 
-                        type = "model", 
-                        conf.int = TRUE)
+  Rparam = R.s.miss(sone=s1, 
+                    szero=s0, 
+                    yone = y1, 
+                    yzero = y0, 
+                    type = "model", 
+                    conf.int = TRUE)
   sim_res[r, c("gs_param_delta", "gs_param_delta.s", "gs_param_R.s")] = with(Rparam, c(delta, delta.s, R.s))
   sim_res[r, c("gs_param_var_R.s", "gs_param_normci_lb_R.s", "gs_param_normci_ub_R.s", 
                "gs_param_quantci_lb_R.s", "gs_param_quantci_ub_R.s")] = with(Rparam, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
@@ -94,23 +91,23 @@ for (r in 1:REPS) {
   #Estimates with incomplete data ##########################
   ##########################################################
   ## Estimate R with nonparametric approach (complete case)
-  Rnonparam_miss = R.s.estimate(sone = s1[m1==1], 
-                                szero = s0[m0==1], 
-                                yone = y1[m1==1], 
-                                yzero = y0[m0==1], 
-                                type = "robust", 
-                                conf.int = TRUE)
+  Rnonparam_miss = R.s.miss(sone = s1[m1==1], 
+                            szero = s0[m0==1], 
+                            yone = y1[m1==1], 
+                            yzero = y0[m0==1], 
+                            type = "robust", 
+                            conf.int = TRUE)
   sim_res[r, c("cc_nonparam_delta", "cc_nonparam_delta.s", "cc_nonparam_R.s")] = with(Rnonparam_miss, c(delta, delta.s, R.s))
   sim_res[r, c("cc_nonparam_var_R.s", "cc_nonparam_normci_lb_R.s", "cc_nonparam_normci_ub_R.s", 
                "cc_nonparam_quantci_lb_R.s", "cc_nonparam_quantci_ub_R.s")] = with(Rnonparam_miss, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   ## Estimate R with parametric approach (complete case)
-  Rparam_miss = R.s.estimate(sone = s1[m1==1], 
-                             szero = s0[m0==1], 
-                             yone = y1[m1==1], 
-                             yzero = y0[m0==1], 
-                             type = "model", 
-                             conf.int = TRUE)
+  Rparam_miss = R.s.miss(sone = s1[m1==1], 
+                         szero = s0[m0==1], 
+                         yone = y1[m1==1], 
+                         yzero = y0[m0==1], 
+                         type = "model", 
+                         conf.int = TRUE)
   sim_res[r, c("cc_param_delta", "cc_param_delta.s", "cc_param_R.s")] = with(Rparam_miss, c(delta, delta.s, R.s))
   sim_res[r, c("cc_param_var_R.s", "cc_param_normci_lb_R.s", "cc_param_normci_ub_R.s", 
                "cc_param_quantci_lb_R.s", "cc_param_quantci_ub_R.s")] = with(Rparam_miss, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
@@ -124,21 +121,19 @@ for (r in 1:REPS) {
   w1 = 1 / p1
   p0 = 1 / (1 + exp(-(ipw_fit$coefficients[1] + ipw_fit$coefficients[2] * y0)))
   w0 = 1 / p0  
-
+  
   ## Estimate R with nonparametric approach (IPW)
   Rnonparam_miss_ipw = R.s.miss(sone = s1, 
                                 szero = s0, 
                                 yone = y1, 
-                                yzero = y0, 
+                                yzero = y0,
                                 type = "robust",
                                 wone = w1, 
                                 wzero = w0, 
-                                ipw_formula = m ~ y, 
-                                conf.int = TRUE, 
-                                boot = TRUE)
+                                ipw.formula = m ~ y, 
+                                conf.int = TRUE)
   sim_res[r, c("ipw_nonparam_delta", "ipw_nonparam_delta.s", "ipw_nonparam_R.s")] = with(Rnonparam_miss_ipw, c(delta, delta.s, R.s))
-  sim_res[r, c("ipw_nonparam_var_R.s", "ipw_nonparam_normci_lb_R.s", "ipw_nonparam_normci_ub_R.s", 
-               "ipw_nonparam_quantci_lb_R.s", "ipw_nonparam_quantci_ub_R.s")] = with(Rnonparam_miss_ipw, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
+  sim_res[r, c("ipw_nonparam_var_R.s", "ipw_nonparam_normci_lb_R.s", "ipw_nonparam_normci_ub_R.s", "ipw_nonparam_quantci_lb_R.s", "ipw_nonparam_quantci_ub_R.s")] = with(Rnonparam_miss_ipw, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   ## Estimate R with parametric approach (IPW)
   Rparam_miss_ipw = R.s.miss(sone = s1, 
@@ -148,9 +143,8 @@ for (r in 1:REPS) {
                              type = "model",
                              wone = w1, 
                              wzero = w0, 
-                             ipw_formula = m ~ y, 
-                             conf.int = TRUE, 
-                             boot = TRUE)
+                             ipw.formula = m ~ y, 
+                             conf.int = TRUE)
   sim_res[r, c("ipw_param_delta", "ipw_param_delta.s", "ipw_param_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
   sim_res[r, c("ipw_param_var_R.s", "ipw_param_normci_lb_R.s", "ipw_param_normci_ub_R.s", 
                "ipw_param_quantci_lb_R.s", "ipw_param_quantci_ub_R.s")] = with(Rparam_miss_ipw, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))

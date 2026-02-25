@@ -36,6 +36,7 @@ REPS = 50
 ## Set sample sizes 
 n1 = 1000
 n0 = 1000
+
 ## Initialize empty dataframe for results
 sim_res = data.frame(
   r = 1:REPS, 
@@ -45,6 +46,8 @@ sim_res = data.frame(
   cc_param_delta = NA, cc_param_delta.s = NA, cc_param_R.s = NA, cc_param_var_R.s = NA, cc_param_normci_lb_R.s = NA, cc_param_normci_ub_R.s = NA, cc_param_quantci_lb_R.s = NA, cc_param_quantci_ub_R.s = NA,
   ipw_nonparam_delta = NA, ipw_nonparam_delta.s = NA, ipw_nonparam_R.s = NA, ipw_nonparam_var_R.s = NA, ipw_nonparam_normci_lb_R.s = NA, ipw_nonparam_normci_ub_R.s = NA, ipw_nonparam_quantci_lb_R.s = NA, ipw_nonparam_quantci_ub_R.s = NA,
   ipw_param_delta = NA, ipw_param_delta.s = NA, ipw_param_R.s = NA, ipw_param_var_R.s = NA, ipw_param_normci_lb_R.s = NA, ipw_param_normci_ub_R.s = NA, ipw_param_quantci_lb_R.s = NA, ipw_param_quantci_ub_R.s = NA) 
+
+## Loop over replications
 for (r in 1:REPS) {
   # Generate data 
   data = gen.data(n1=n1, n0=n0) 
@@ -81,11 +84,11 @@ for (r in 1:REPS) {
                "gs_param_quantci_lb_R.s", "gs_param_quantci_ub_R.s")] = with(Rparam, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   # Simulate non-missingness indicators ###################
-  ## Under MAR, probability of missingness depends on Z (logistic regression)
-  m1 = rbinom(n = n1, size = 1, prob = 1 / (1 + exp(- 0.6)))
-  m0 = rbinom(n = n0, size = 1, prob = 1 / (1 + exp(- 0.4)))
+  ## Under MCAR, everybody has 35% missingness probability
+  m1 = rbinom(n1, 1, 0.65) 
+  m0 = rbinom(n0, 1, 0.65)
   s0[m0==0] = NA ### make them missing
-  s1[m1==0] = NA ### make them missing  
+  s1[m1==0] = NA ### make them missing
   
   ##########################################################
   #Estimates with incomplete data ##########################
@@ -113,26 +116,16 @@ for (r in 1:REPS) {
                "cc_param_quantci_lb_R.s", "cc_param_quantci_ub_R.s")] = with(Rparam_miss, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
   ## Calculate weights for IPW approaches
-  z = rep(c(1, 0), times = c(n1, n0))
   m = c(m1, m0)
-  y = c(y1, y0)
-  ipw_fit = glm(formula = m ~ z, 
+  ipw_fit = glm(formula = m ~ 1, 
                 family = "binomial")
-  p1 = 1 / (1 + exp(-(ipw_fit$coefficients[1] + ipw_fit$coefficients[2])))
-  w1 = rep(1 / p1, n1)
-  p0 = 1 / (1 + exp(-(ipw_fit$coefficients[1])))
-  w0 = rep(1 / p0, n0)  
+  p1 = rep(x = 1 / (1 + exp(-ipw_fit$coefficients)), times = n1)
+  w1 = 1 / p1
+  p0 = rep(x = 1 / (1 + exp(-ipw_fit$coefficients)), times = n0)
+  w0 = 1 / p0  
   
   ## Estimate R with nonparametric approach (IPW)
-  Rnonparam_miss_ipw = R.s.miss(sone = s1, 
-                                szero = s0, 
-                                yone = y1, 
-                                yzero = y0,
-                                type = "robust",
-                                wone = w1, 
-                                wzero = w0, 
-                                ipw.formula = m ~ z, 
-                                conf.int = TRUE)
+  Rnonparam_miss_ipw = R.s.miss(sone = s1, szero = s0, yone = y1, yzero = y0, type = "robust", wone = w1, wzero = w0, ipw.formula = m ~ 1, conf.int = TRUE)
   sim_res[r, c("ipw_nonparam_delta", "ipw_nonparam_delta.s", "ipw_nonparam_R.s")] = with(Rnonparam_miss_ipw, c(delta, delta.s, R.s))
   sim_res[r, c("ipw_nonparam_var_R.s", "ipw_nonparam_normci_lb_R.s", "ipw_nonparam_normci_ub_R.s", "ipw_nonparam_quantci_lb_R.s", "ipw_nonparam_quantci_ub_R.s")] = with(Rnonparam_miss_ipw, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
   
@@ -144,7 +137,7 @@ for (r in 1:REPS) {
                              type = "model",
                              wone = w1, 
                              wzero = w0, 
-                             ipw.formula = m ~ z, 
+                             ipw.formula = m ~ 1, 
                              conf.int = TRUE)
   sim_res[r, c("ipw_param_delta", "ipw_param_delta.s", "ipw_param_R.s")] = with(Rparam_miss_ipw, c(delta, delta.s, R.s))
   sim_res[r, c("ipw_param_var_R.s", "ipw_param_normci_lb_R.s", "ipw_param_normci_ub_R.s", 
@@ -152,6 +145,6 @@ for (r in 1:REPS) {
   
   ## Save 
   sim_res |> 
-    write.csv(paste0("sett3_mar_givZ/sett3_mar_givZ_seed", sim_seed, ".csv"), 
+    write.csv(paste0("sett1_mcar/sett1_mcar_seed", sim_seed, ".csv"), 
               row.names = FALSE)
 }

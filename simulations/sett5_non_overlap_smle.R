@@ -28,7 +28,7 @@ f.cond.0 = function(s.vector) {
   return(y0)		
 }
 g.1 = function(n, alpha0=5) { return(rnorm(n, alpha0 + 1, 1/2))}
-g.0 = function(n, alpha0=5) { return(rnorm(n, alpha0, 1))}
+g.0 = function(n,alpha0=5) { return(rnorm(n, alpha0,1))}
 
 # Run simulations 
 ## Set number of replications per array
@@ -66,7 +66,8 @@ for (r in 1:REPS) {
                               yone = y1,
                               yzero = y0, 
                               type = "model", 
-                              conf.int = TRUE) 
+                              conf.int = TRUE, 
+                              orig.smle = TRUE) 
   sim_res[r, c("smle_param_delta", "smle_param_delta.s", "smle_param_R.s")] = with(Rparam_miss_smle, c(delta, delta.s, R.s))
   sim_res[r, c("smle_param_var_R.s", "smle_param_normci_lb_R.s", "smle_param_normci_ub_R.s", 
                "smle_param_quantci_lb_R.s", "smle_param_quantci_ub_R.s")] = with(Rparam_miss_smle, c(R.s.var, conf.int.normal.R.s, conf.int.quantile.R.s))
