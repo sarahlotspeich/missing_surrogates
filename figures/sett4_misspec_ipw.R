@@ -29,7 +29,7 @@ res_long = sim_res |>
                                            "Gold\nStandard",  "Complete\nCase", "IPW\n(Y Only)", "IPW\n(Z Only)", "IPW\n(Y + Z)", "IPW\n(Y x Z)", "SMLE")), 
                 true_model = factor(x = true_model, 
                                     levels = c("O ~ Y + Z + Y x Z", "O ~ Y"),
-                                    labels = c(TeX("Missingness Mechanism: $O \\sim Y + Z + Y \\times Z$"), 
+                                    labels = c(TeX("Missingness Mechanism: $O \\sim Y \\times Z$"), 
                                                TeX("Missingness Mechanism: $O \\sim Y$"))))
 
 # Make a boxplot 
