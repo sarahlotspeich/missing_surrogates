@@ -8,5 +8,7 @@ devtools::source_url("https://raw.githubusercontent.com/sarahlotspeich/missing_s
 sim_res = read.csv("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett3_mar_givZ.csv")
 
 # Make table 
+print("Table 2 (top):")
 sim_res |> 
-  table_of_estimates()
+  table_of_estimates() |> 
+  print()
