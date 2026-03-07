@@ -23,17 +23,17 @@ res_long = sim_res |>
                                     labels = c("PTE Estimator: Nonparametric",
                                                "PTE Estimator: Parametric")), 
                 method = factor(x = method, 
-                                levels = c("gs_nonparam", "cc_nonparam", "ipw_nonparam_Yonly", "ipw_nonparam_Zonly", "ipw_nonparam_YZ_main", "ipw_nonparam_YZ",
-                                           "gs_param", "cc_param", "ipw_param_Yonly", "ipw_param_Zonly", "ipw_param_YZ_main", "ipw_param_YZ","smle_param"), 
-                                labels = c("Gold\nStandard", "Complete\nCase", "IPW\n(Y Only)", "IPW\n(Z Only)", "IPW\n(Y + Z)", "IPW\n(Y x Z)",
-                                           "Gold\nStandard",  "Complete\nCase", "IPW\n(Y Only)", "IPW\n(Z Only)", "IPW\n(Y + Z)", "IPW\n(Y x Z)", "SMLE")), 
+                                levels = c("gs_nonparam", "cc_nonparam", "ipw_nonparam_Yonly", "ipw_nonparam_Zonly", "ipw_nonparam_YZ_main", "ipw_nonparam_YZ", "ipw_nonparam_YZ_only",
+                                           "gs_param", "cc_param", "ipw_param_Yonly", "ipw_param_Zonly", "ipw_param_YZ_main", "ipw_param_YZ", "ipw_param_YZ_only", "smle_param"), 
+                                labels = c("Gold Standard", "Complete Case", "IPW (Y Only)", "IPW (Z Only)", "IPW (Y + Z)", "IPW (Y + Z + Y x Z)", "IPW (Y + Y x Z)",
+                                           "Gold Standard",  "Complete Case", "IPW (Y Only)", "IPW (Z Only)", "IPW (Y + Z)", "IPW (Y + Z + Y x Z)", "IPW (Y + Y x Z)", "SMLE")), 
                 true_model = factor(x = true_model, 
                                     levels = c("O ~ Y + Z + Y x Z", "O ~ Y"),
-                                    labels = c(TeX("Missingness Mechanism: $O \\sim Y \\times Z$"), 
+                                    labels = c(TeX("Missingness Mechanism: $O \\sim Y + Y \\times Z$"), 
                                                TeX("Missingness Mechanism: $O \\sim Y$"))))
 
 # Make a boxplot 
-cols = c("#787ff6", "#ffbd59", "#8bdddb", "#ff99ff",  "#7dd5f6", "#ff914d", "#7bc96f") ## color palette
+cols = c("#787ff6", "#ffbd59", "#8bdddb", "#ff99ff", "#7dd5f6", "#ff914d", "#7bc96f", "#c79df2")
 res_long |> 
   ggplot(aes(x = method, y = est, fill = method)) + 
   geom_hline(yintercept = 0.5, linetype = 2, color = "black") + 
@@ -49,7 +49,8 @@ res_long |>
   theme_minimal(base_size = 16) + 
   theme(legend.position = "top", 
         strip.background = element_rect(fill = "black"), 
-        strip.text = element_text(color = "white"))
+        strip.text = element_text(color = "white")) + 
+  scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
 ggsave(filename = "figures/sett4_misspec_ipw_boxplot.pdf", 
        device = "pdf", width = 12, height = 10)
 res_long |> 
@@ -64,6 +65,7 @@ res_long |>
              labeller = labeller(parametric = label_value, 
                                  true_model = label_parsed)) + 
   scale_fill_manual(name = "Method:", values = cols, guide = "none") + 
+  #scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10)) + 
   theme_minimal(base_size = 16) + 
   theme(legend.position = "top", 
         strip.background = element_rect(fill = "black"), 
