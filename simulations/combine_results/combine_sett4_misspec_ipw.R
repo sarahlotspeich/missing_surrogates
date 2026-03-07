@@ -3,6 +3,16 @@ p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/
 sim_res = do.call(dplyr::bind_rows, 
                   lapply(X = paste0(p, list.files(p)), 
                          FUN = read.csv))
+### Additional IPW with O ~ Y + Y x Z (correct model)
+p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett4_misspec_ipw/correct_sett4_misspec_ipw_seed", 0:19, ".csv")
+sim_res = sim_res |> 
+  dplyr::bind_cols(
+    do.call(dplyr::bind_rows, 
+            lapply(X = paste0(p, list.files(p)), 
+                   FUN = read.csv)) |> 
+      select(-r)
+  )
+
 # SMLE
 p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett4_misspec_ipw/smle_sett4_misspec_ipw_seed", 20:39, ".csv")
 sim_res = sim_res |>
@@ -23,6 +33,15 @@ p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/
 sim_res = do.call(dplyr::bind_rows, 
                   lapply(X = paste0(p, list.files(p)), 
                          FUN = read.csv))
+### Additional IPW with O ~ Y + Y x Z
+p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett4_misspec_ipw_overfit/correct_sett4_misspec_ipw_seed", 0:19, ".csv")
+sim_res = sim_res |> 
+  dplyr::bind_cols(
+    do.call(dplyr::bind_rows, 
+            lapply(X = paste0(p, list.files(p)), 
+                   FUN = read.csv)) |> 
+      select(-r)
+  )
 # SMLE (from Setting 2)
 p = paste0("https://raw.githubusercontent.com/sarahlotspeich/missing_surrogates/refs/heads/main/simulations/sett2_mar_givY/smle_sett2_mar_givY_seed", 20:39, ".csv")
 sim_res = sim_res |> 
